@@ -8,27 +8,40 @@ import { cn } from "@/lib/utils";
 export interface AgentNodeData {
   label: string;
   emoji?: string;
+  model?: string;
   sessionCount: number;
   isDefault?: boolean;
   agentId: string;
+  dimmed?: boolean;
   [key: string]: unknown;
 }
 
 export type AgentNodeType = Node<AgentNodeData, "agent">;
 
 function AgentNodeComponent({ data }: NodeProps<AgentNodeType>) {
-  const { label, emoji, sessionCount, isDefault } = data;
+  const { label, emoji, model, sessionCount, isDefault, dimmed } = data;
   const isActive = sessionCount > 0;
+
+  const tooltip = [
+    label,
+    model ? `Model: ${model}` : null,
+    `Sessions: ${sessionCount}`,
+    isDefault ? "Default Agent" : null,
+  ]
+    .filter(Boolean)
+    .join("\n");
 
   return (
     <div
       className={cn(
-        "group relative flex flex-col items-center justify-center min-w-[160px] rounded-2xl px-5 py-4 transition-all duration-300",
+        "group relative flex flex-col items-center justify-center min-w-[160px] rounded-2xl px-5 py-4 transition-all duration-300 cursor-pointer",
         "bg-glass shadow-lg border-zinc-800/60",
         "hover:bg-zinc-900/60 hover:border-zinc-700/80 hover:shadow-xl",
         isDefault && "border-blue-500/30 shadow-[0_0_20px_rgba(59,130,246,0.15)] ring-1 ring-inset ring-blue-500/20",
-        isActive && "border-emerald-500/40 shadow-[0_0_25px_rgba(16,185,129,0.15)] ring-1 ring-inset ring-emerald-500/20"
+        isActive && "border-emerald-500/40 shadow-[0_0_25px_rgba(16,185,129,0.15)] ring-1 ring-inset ring-emerald-500/20",
+        dimmed && "opacity-25 scale-[0.97]"
       )}
+      title={tooltip}
     >
       <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-white/5 to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100 pointer-events-none" />
 

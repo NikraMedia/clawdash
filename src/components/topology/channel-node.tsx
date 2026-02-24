@@ -8,22 +8,32 @@ import { Activity } from "lucide-react";
 export interface ChannelNodeData {
   label: string;
   connected?: boolean;
+  agentName?: string;
+  dimmed?: boolean;
   [key: string]: unknown;
 }
 
 export type ChannelNodeType = Node<ChannelNodeData, "channel">;
 
 function ChannelNodeComponent({ data }: NodeProps<ChannelNodeType>) {
-  const { label, connected } = data;
+  const { label, connected, agentName, dimmed } = data;
+
+  const tooltip = [
+    label,
+    connected ? "Status: Connected" : "Status: Disconnected",
+    agentName ? `Agent: ${agentName}` : "Unbound",
+  ].join("\n");
 
   return (
     <div
       className={cn(
-        "group relative flex items-center gap-2.5 rounded-full bg-glass px-4 py-2 shadow-lg backdrop-blur-md transition-all duration-300",
+        "group relative flex items-center gap-2.5 rounded-full bg-glass px-4 py-2 shadow-lg backdrop-blur-md transition-all duration-300 cursor-pointer",
         connected
           ? "border-emerald-500/30 ring-1 ring-inset ring-emerald-500/10 shadow-[0_0_15px_rgba(16,185,129,0.1)] hover:bg-emerald-950/60 hover:border-emerald-500/50"
-          : "border-zinc-800/60 hover:bg-zinc-900/40 hover:border-zinc-700/80"
+          : "border-zinc-800/60 hover:bg-zinc-900/40 hover:border-zinc-700/80",
+        dimmed && "opacity-25 scale-[0.97]"
       )}
+      title={tooltip}
     >
       <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100 pointer-events-none" />
 

@@ -8,26 +8,43 @@ import { Clock } from "lucide-react";
 export interface CronNodeData {
   label: string;
   status?: "ok" | "error" | "timeout";
+  enabled?: boolean;
+  schedule?: string;
   agentId: string;
+  dimmed?: boolean;
   [key: string]: unknown;
 }
 
 export type CronNodeType = Node<CronNodeData, "cron">;
 
 function CronNodeComponent({ data }: NodeProps<CronNodeType>) {
-  const { label, status } = data;
+  const { label, status, enabled = true, schedule, dimmed } = data;
+
+  const statusLabel =
+    status === "error" ? "Error" : status === "timeout" ? "Timeout" : "OK";
+  const tooltip = [
+    label,
+    schedule ? `Schedule: ${schedule}` : null,
+    `Status: ${statusLabel}`,
+    enabled ? "Enabled" : "Disabled",
+  ]
+    .filter(Boolean)
+    .join("\n");
 
   return (
     <div
       className={cn(
-        "group relative flex items-center gap-2 rounded-xl border bg-zinc-950/80 px-3.5 py-2 shadow-lg backdrop-blur-xl ring-1 ring-inset transition-all duration-300 hover:scale-[1.02]",
+        "group relative flex items-center gap-2 rounded-xl border bg-zinc-950/80 px-3.5 py-2 shadow-lg backdrop-blur-xl ring-1 ring-inset transition-all duration-300 cursor-pointer",
+        enabled && "hover:scale-[1.02]",
         status === "error"
           ? "border-red-500/40 bg-red-950/30 ring-red-500/20 shadow-[0_0_20px_rgba(239,68,68,0.15)] hover:bg-red-950/40"
           : status === "timeout"
             ? "border-amber-500/40 bg-amber-950/30 ring-amber-500/20 shadow-[0_0_20px_rgba(245,158,11,0.15)] hover:bg-amber-950/40"
-            : "border-zinc-800/80 ring-white/5 shadow-[0_0_15px_rgba(255,255,255,0.02)] hover:bg-zinc-900/80 hover:border-zinc-700/80"
+            : "border-zinc-800/80 ring-white/5 shadow-[0_0_15px_rgba(255,255,255,0.02)] hover:bg-zinc-900/80 hover:border-zinc-700/80",
+        !enabled && "border-dashed opacity-50",
+        dimmed && "opacity-25 scale-[0.97]"
       )}
-      title={label}
+      title={tooltip}
     >
       <div className="absolute inset-0 rounded-xl bg-gradient-to-br from-white/5 to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100 pointer-events-none" />
 
