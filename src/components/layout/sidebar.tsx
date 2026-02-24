@@ -23,6 +23,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Input } from "@/components/ui/input";
 import {
   getSessionTitle,
+  generatePreviewText,
   getTimeGroup,
   type TimeGroup,
 } from "@/lib/session-utils";
@@ -56,6 +57,7 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
         (s) =>
           (s.label ?? "").toLowerCase().includes(q) ||
           (s.derivedTitle ?? "").toLowerCase().includes(q) ||
+          (s.lastMessagePreview ?? "").toLowerCase().includes(q) ||
           (s.displayName ?? "").toLowerCase().includes(q) ||
           s.key.toLowerCase().includes(q)
       );
@@ -151,6 +153,7 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
                       {items.map((s) => {
                         const isActive = pathname === `/sessions/${encodeURIComponent(s.key)}`;
                         const title = getSessionTitle(s);
+                        const preview = generatePreviewText(s);
 
                         return (
                           <Link
@@ -165,6 +168,9 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
                             )}
                           >
                             <span className="truncate pr-2">{title}</span>
+                            {preview && (
+                              <span className="truncate pr-2 text-[11px] text-zinc-600 leading-tight">{preview}</span>
+                            )}
                           </Link>
                         );
                       })}
@@ -190,25 +196,25 @@ export function Sidebar() {
 
 export function MobileSidebar() {
   const [open, setOpen] = useState(false);
-  
+
   return (
     <div className="md:hidden">
-      <button 
-        onClick={() => setOpen(true)} 
+      <button
+        onClick={() => setOpen(true)}
         className="mr-2 p-1.5 hover:bg-zinc-800 rounded-md transition-colors text-zinc-400 hover:text-zinc-100"
       >
         <Menu className="h-5 w-5" />
       </button>
-      
+
       {open && (
         <div className="fixed inset-0 z-50 flex">
-          <div 
-            className="absolute inset-0 bg-black/60 backdrop-blur-sm transition-opacity" 
-            onClick={() => setOpen(false)} 
+          <div
+            className="absolute inset-0 bg-black/60 backdrop-blur-sm transition-opacity"
+            onClick={() => setOpen(false)}
           />
           <aside className="relative flex w-72 h-full flex-col border-r border-zinc-800 bg-glass shadow-2xl animate-in slide-in-from-left-8 duration-300">
-            <button 
-              onClick={() => setOpen(false)} 
+            <button
+              onClick={() => setOpen(false)}
               className="absolute right-4 top-4 p-1.5 bg-zinc-900/50 hover:bg-zinc-800 rounded-md text-zinc-400 hover:text-zinc-100 transition-colors z-50 border border-zinc-800/50"
             >
               <X className="h-4 w-4" />

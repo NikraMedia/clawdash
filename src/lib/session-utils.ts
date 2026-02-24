@@ -17,6 +17,34 @@ export function isUsefulTitle(title: string | undefined): title is string {
     return true;
 }
 
+/** Truncate text at a word boundary, appending ellipsis if needed. */
+function truncateOnWord(text: string, maxLen: number): string {
+    if (text.length <= maxLen) return text;
+    const truncated = text.slice(0, maxLen);
+    const lastSpace = truncated.lastIndexOf(" ");
+    const cutPoint = lastSpace > maxLen * 0.4 ? lastSpace : maxLen;
+    return truncated.slice(0, cutPoint).replace(/[,;:\s]+$/, "") + "…";
+}
+
+/** Strip leading filler words/greetings from a message to get to the intent. */
+function stripFillerPrefix(text: string): string {
+    const pattern = /^(hey|hi|hello|yo|ok|okay|sure|please|can you|could you|i need you to|i want you to|i'd like you to)[,!.:\s]*/i;
+    let result = text;
+    let prev = "";
+    while (result !== prev) {
+        prev = result;
+        result = result.replace(pattern, "");
+    }
+    return result.replace(/^\s+/, "");
+}
+
+/** Clean raw message text into a presentable title. */
+function cleanForTitle(raw: string): string {
+    const cleaned = stripFillerPrefix(stripMarkdown(stripRoutingTags(raw))).trim();
+    if (!cleaned) return "";
+    return cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
+}
+
 export function stripRoutingTags(text: string): string {
     return text.replace(/\[\[[^\]]+\]\]\s*/g, "").trim();
 }
@@ -44,15 +72,47 @@ export function stripMarkdown(text: string): string {
 }
 
 export function getSessionTitle(s: Partial<SessionRow>): string {
-    if (isUsefulTitle(s.label)) return s.label;
+    if (isUsefulTitle(s.label)) {
+        const cleaned = cleanForTitle(s.label);
+        if (cleaned) return truncateOnWord(cleaned, 60);
+    }
     if (isUsefulTitle(s.derivedTitle)) return s.derivedTitle;
     if (isUsefulTitle(s.lastMessagePreview)) {
-        const preview = stripMarkdown(stripRoutingTags(s.lastMessagePreview));
-        if (preview) return preview.length > 60 ? preview.slice(0, 57) + "..." : preview;
+        const cleaned = cleanForTitle(s.lastMessagePreview);
+        if (cleaned) return truncateOnWord(cleaned, 60);
     }
+    // Try origin metadata (e.g., "Slack · #general", "CLI")
+    const originTitle = buildOriginTitle(s);
+    if (originTitle) return originTitle;
     if (isUsefulTitle(s.displayName)) return s.displayName;
+    if (isUsefulTitle(s.subject)) return truncateOnWord(s.subject, 60);
     if (!s.key) return "Unknown Session";
     return generateFallbackTitle(s.key);
+}
+
+/** Build a title from origin metadata when no better title exists. */
+function buildOriginTitle(s: Partial<SessionRow>): string | null {
+    const origin = s.origin;
+    if (!origin) return null;
+    if (isUsefulTitle(origin.label)) return origin.label;
+    const parts: string[] = [];
+    if (origin.surface) parts.push(origin.surface);
+    if (origin.chatType && origin.chatType !== "direct") parts.push(origin.chatType);
+    if (origin.from) parts.push(origin.from);
+    if (parts.length > 0) return parts.join(" · ");
+    return null;
+}
+
+/**
+ * Generate a 1-line preview from lastMessagePreview for display
+ * beneath the title in the sidebar. Returns null if nothing useful.
+ */
+export function generatePreviewText(s: Partial<SessionRow>): string | null {
+    const raw = s.lastMessagePreview;
+    if (!raw || !raw.trim()) return null;
+    const cleaned = stripMarkdown(stripRoutingTags(raw)).trim();
+    if (!cleaned || cleaned.length < 3) return null;
+    return truncateOnWord(cleaned, 80);
 }
 
 export function generateFallbackTitle(key: string): string {

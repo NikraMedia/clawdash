@@ -10,6 +10,7 @@ import { MessageSquarePlus, Paperclip, ChevronDown, X, Send, Loader2 } from "luc
 import { validateAndAddFiles } from "@/lib/file-validation";
 import { Textarea } from "@/components/ui/textarea";
 import { parseModelsResponse } from "@/lib/model-options";
+import { stripMarkdown, stripRoutingTags } from "@/lib/session-utils";
 
 export default function NewSessionPage() {
   const [agentId, setAgentId] = useState("");
@@ -129,7 +130,15 @@ export default function NewSessionPage() {
       });
 
       // 2. Patch session with a readable label (await before navigating)
-      const label = trimmedMsg.length > 80 ? trimmedMsg.slice(0, 77) + "..." : trimmedMsg;
+      let cleaned = stripMarkdown(stripRoutingTags(trimmedMsg));
+      const fillerRe = /^(hey|hi|hello|yo|ok|okay|sure|please|can you|could you|i need you to|i want you to|i'd like you to)[,!.:\s]*/i;
+      let prev = "";
+      while (cleaned !== prev) { prev = cleaned; cleaned = cleaned.replace(fillerRe, ""); }
+      cleaned = cleaned.trim();
+      const titled = cleaned ? cleaned.charAt(0).toUpperCase() + cleaned.slice(1) : trimmedMsg;
+      const label = titled.length > 60
+        ? titled.slice(0, titled.lastIndexOf(" ", 60) > 24 ? titled.lastIndexOf(" ", 60) : 60).replace(/[,;:\s]+$/, "") + "\u2026"
+        : titled;
       try {
         await patchMutation.mutateAsync({ key: sessionKey, label });
       } catch {
@@ -264,11 +273,10 @@ export default function NewSessionPage() {
             onDragOver={(e) => { e.preventDefault(); setIsDragOver(true); }}
             onDragLeave={() => setIsDragOver(false)}
             onDrop={handleDrop}
-            className={`relative rounded-xl border bg-zinc-900/60 shadow-inner transition-all flex flex-col ${
-              isDragOver
-                ? "border-indigo-500/50 ring-2 ring-indigo-500/20"
-                : "border-zinc-800 focus-within:border-zinc-600 focus-within:ring-1 focus-within:ring-zinc-600"
-            }`}
+            className={`relative rounded-xl border bg-zinc-900/60 shadow-inner transition-all flex flex-col ${isDragOver
+              ? "border-indigo-500/50 ring-2 ring-indigo-500/20"
+              : "border-zinc-800 focus-within:border-zinc-600 focus-within:ring-1 focus-within:ring-zinc-600"
+              }`}
           >
             <Textarea
               ref={textareaRef}
@@ -325,11 +333,10 @@ export default function NewSessionPage() {
                       key={level}
                       onClick={() => setThinkingLevel(level)}
                       disabled={sendMutation.isPending}
-                      className={`flex h-6 items-center px-2 rounded text-[11px] font-medium transition-all ${
-                        thinkingLevel === level
-                          ? "bg-indigo-500/20 text-indigo-300 ring-1 ring-indigo-500/30"
-                          : "text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/50"
-                      }`}
+                      className={`flex h-6 items-center px-2 rounded text-[11px] font-medium transition-all ${thinkingLevel === level
+                        ? "bg-indigo-500/20 text-indigo-300 ring-1 ring-indigo-500/30"
+                        : "text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/50"
+                        }`}
                     >
                       {level === "" ? "Default" : level.charAt(0).toUpperCase() + level.slice(1)}
                     </button>
