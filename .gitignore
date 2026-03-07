@@ -73,3 +73,4 @@ ui-audit-report.md
 *.db
 *.db-journal
 *.db-wal
+.github/
