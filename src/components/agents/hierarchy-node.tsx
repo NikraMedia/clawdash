@@ -111,10 +111,10 @@ function HierarchyNodeComponent({ data }: NodeProps<HierarchyNodeType>) {
         dimmed && "opacity-20 scale-[0.97]"
       )}
     >
-      {/* LEFT Handle (target) - Blender style */}
+      {/* TOP Handle (target) - Blender style */}
       <Handle
         type="target"
-        position={Position.Left}
+        position={Position.Top}
         style={{
           ...HANDLE_STYLE,
           opacity: 0.6,
@@ -123,10 +123,10 @@ function HierarchyNodeComponent({ data }: NodeProps<HierarchyNodeType>) {
         isConnectable={true}
       />
 
-      {/* RIGHT Handle (source) - Blender style */}
+      {/* BOTTOM Handle (source) - Blender style */}
       <Handle
         type="source"
-        position={Position.Right}
+        position={Position.Bottom}
         style={{
           ...HANDLE_STYLE,
           opacity: 0.6,
