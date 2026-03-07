@@ -48,20 +48,32 @@ interface HierarchyViewProps {
   selectedAgentId: string | null;
 }
 
+// Hardcoded agent definitions — always visible regardless of tRPC data
+const HARDCODED_AGENTS = [
+  { id: "steve", name: "Steve", emoji: "\uD83E\uDDE0", role: "Strategie", color: "amber" },
+  { id: "gary", name: "Gary", emoji: "\uD83D\uDCE3", role: "Marketing", color: "pink" },
+  { id: "jimmy", name: "Jimmy", emoji: "\u270D\uFE0F", role: "Content", color: "orange" },
+  { id: "neil", name: "Neil", emoji: "\uD83D\uDD0D", role: "SEO", color: "green" },
+  { id: "nate", name: "Nate", emoji: "\uD83D\uDCCA", role: "Analytics", color: "cyan" },
+  { id: "alex", name: "Alex", emoji: "\uD83D\uDCBC", role: "Sales", color: "red" },
+  { id: "warren", name: "Warren", emoji: "\uD83D\uDCB0", role: "Finance", color: "emerald" },
+  { id: "tom", name: "Tom", emoji: "\uD83D\uDCCB", role: "Tax", color: "yellow" },
+  { id: "robert", name: "Robert", emoji: "\u2696\uFE0F", role: "Legal", color: "purple" },
+  { id: "tiago", name: "Tiago", emoji: "\uD83D\uDDC3\uFE0F", role: "Notion", color: "blue" },
+  { id: "pieter", name: "Pieter", emoji: "\uD83D\uDCBB", role: "Tech", color: "zinc" },
+] as const;
+
 function buildLayout(agents: AgentData[], sessionCounts: Record<string, number>) {
   const nodes: HierarchyNodeType[] = [];
   const edges: Edge[] = [];
 
-  // Agent ordering
-  const agentOrder = ["steve", "gary", "jimmy", "neil", "nate", "alex", "warren", "tom", "robert", "tiago", "pieter"];
-  const sortedAgents = agentOrder
-    .map((id) => agents.find((a) => a.id === id))
-    .filter(Boolean) as AgentData[];
+  // Build lookup from tRPC data for optional enrichment (model, etc.)
+  const agentLookup = new Map(agents.map((a) => [a.id, a]));
 
   // Layout constants
   const nodeWidth = 170;
   const nodeSpacing = 200;
-  const totalWidth = (sortedAgents.length - 1) * nodeSpacing;
+  const totalWidth = (HARDCODED_AGENTS.length - 1) * nodeSpacing;
   const startX = -totalWidth / 2;
   const chefY = 0;
   const managerY = 180;
@@ -83,7 +95,7 @@ function buildLayout(agents: AgentData[], sessionCounts: Record<string, number>)
   } as HierarchyNodeType);
 
   // Manager node
-  const managerAgent = agents.find((a) => a.id === "manager");
+  const managerAgent = agentLookup.get("manager");
   nodes.push({
     id: "agent-manager",
     type: "hierarchy",
@@ -108,30 +120,29 @@ function buildLayout(agents: AgentData[], sessionCounts: Record<string, number>)
     animated: true,
   });
 
-  // Agent nodes
-  sortedAgents.forEach((agent, i) => {
-    if (agent.id === "manager") return;
-    const meta = AGENT_META[agent.id] ?? { role: "Agent", color: "zinc", emoji: "🤖" };
-    const nodeId = `agent-${agent.id}`;
+  // Hardcoded sub-agent nodes
+  HARDCODED_AGENTS.forEach((def, i) => {
+    const nodeId = `agent-${def.id}`;
+    const live = agentLookup.get(def.id);
 
     nodes.push({
       id: nodeId,
       type: "hierarchy",
       position: { x: startX + i * nodeSpacing, y: agentY },
       data: {
-        label: agent.name ?? agent.id,
-        emoji: agent.emoji ?? meta.emoji,
-        role: meta.role,
-        model: agent.model,
-        isActive: (sessionCounts[agent.id] ?? 0) > 0,
-        color: meta.color,
-        agentId: agent.id,
+        label: live?.name ?? def.name,
+        emoji: live?.emoji ?? def.emoji,
+        role: def.role,
+        model: live?.model,
+        isActive: (sessionCounts[def.id] ?? 0) > 0,
+        color: def.color,
+        agentId: def.id,
       },
     } as HierarchyNodeType);
 
     // Edge: Manager -> Agent
     edges.push({
-      id: `edge-manager-${agent.id}`,
+      id: `edge-manager-${def.id}`,
       source: "agent-manager",
       target: nodeId,
       style: { stroke: "#6366f1", strokeWidth: 1.5, opacity: 0.4 },
