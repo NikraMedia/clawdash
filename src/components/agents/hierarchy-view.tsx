@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useCallback, useState } from "react";
+import { useMemo, useCallback, useState, useRef, useEffect } from "react";
 import {
   ReactFlow,
   Background,
@@ -78,9 +78,9 @@ const HARDCODED_AGENTS = [
 ] as const;
 
 // Node sizes per spec
-const SUB_AGENT_SIZE = { width: 220, height: 200 };
-const MANAGER_SIZE = { width: 240, height: 180 };
-const CHEF_SIZE = { width: 220, height: 160 };
+const SUB_AGENT_SIZE = { width: 220, height: 210 };
+const MANAGER_SIZE = { width: 240, height: 200 };
+const CHEF_SIZE = { width: 220, height: 170 };
 
 function getOnlineStatus(lastActiveMs: number | undefined): "online" | "idle" | "inactive" {
   if (!lastActiveMs) return "inactive";
@@ -122,11 +122,11 @@ function buildLayout(
   const edges: Edge[] = [];
   const agentLookup = new Map(agents.map((a) => [a.id, a]));
 
-  const nodeSpacing = 180;
-  const startX = 30;
-  const chefY = 50;
-  const managerY = 200;
-  const agentY = 400;
+  const nodeSpacing = 310;
+  const startX = 50;
+  const chefY = 80;
+  const managerY = 340;
+  const agentY = 620;
 
   // Chef node
   nodes.push({
@@ -291,6 +291,53 @@ export function HierarchyView({
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialLayout.edges);
   const [highlightedNodeId, setHighlightedNodeId] = useState<string | null>(null);
 
+  // Undo/Redo — nur Positionen + Edges, KEINE Node-Data (sonst verliert man Callbacks/UI)
+  type Snapshot = { positions: Record<string, {x: number, y: number}>; edges: Edge[] };
+  const historyRef = useRef<Snapshot[]>([]);
+  const futureRef = useRef<Snapshot[]>([]);
+
+  const pushHistory = useCallback((_n: unknown, e: Edge[]) => {
+    const pos: Record<string, {x: number, y: number}> = {};
+    setNodes(current => { current.forEach(n => { pos[n.id] = { ...n.position }; }); return current; });
+    historyRef.current.push({ positions: pos, edges: JSON.parse(JSON.stringify(e)) });
+    futureRef.current = [];
+  }, [setNodes]);
+
+  const undo = useCallback(() => {
+    const prev = historyRef.current.pop();
+    if (!prev) return;
+    // Save current to future
+    const curPos: Record<string, {x: number, y: number}> = {};
+    setNodes(current => { current.forEach(n => { curPos[n.id] = { ...n.position }; }); return current; });
+    futureRef.current.push({ positions: curPos, edges: JSON.parse(JSON.stringify(edges)) });
+    // Restore positions only
+    setNodes(current => current.map(n => prev.positions[n.id] ? { ...n, position: prev.positions[n.id] } : n));
+    setEdges(prev.edges);
+    saveEdges(prev.edges);
+  }, [edges, setNodes, setEdges]);
+
+  const redo = useCallback(() => {
+    const next = futureRef.current.pop();
+    if (!next) return;
+    const curPos: Record<string, {x: number, y: number}> = {};
+    setNodes(current => { current.forEach(n => { curPos[n.id] = { ...n.position }; }); return current; });
+    historyRef.current.push({ positions: curPos, edges: JSON.parse(JSON.stringify(edges)) });
+    setNodes(current => current.map(n => next.positions[n.id] ? { ...n, position: next.positions[n.id] } : n));
+    setEdges(next.edges);
+    saveEdges(next.edges);
+  }, [edges, setNodes, setEdges]);
+
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.ctrlKey && e.key === 'z' && !e.shiftKey) { e.preventDefault(); undo(); }
+      if (e.ctrlKey && e.shiftKey && e.key === 'Z') { e.preventDefault(); redo(); }
+      if (e.ctrlKey && e.key === 'y') { e.preventDefault(); redo(); }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [undo, redo]);
+
   const resetLayout = useCallback(() => {
     localStorage.removeItem(POSITIONS_KEY);
     localStorage.removeItem(EDGES_KEY);
@@ -349,13 +396,15 @@ export function HierarchyView({
   const handleNodeDragStop = useCallback(() => {
     setTimeout(() => {
       setNodes(currentNodes => {
+        pushHistory(currentNodes, edges);
         savePositions(currentNodes);
         return currentNodes;
       });
     }, 0);
-  }, [setNodes]);
+  }, [setNodes, edges, pushHistory]);
 
   const handleConnect = useCallback((connection: Connection) => {
+    pushHistory(nodes, edges);
     setEdges(eds => {
       const newEdges = addEdge({
         ...connection,
@@ -366,7 +415,30 @@ export function HierarchyView({
       saveEdges(newEdges);
       return newEdges;
     });
-  }, [setEdges]);
+  }, [setEdges, nodes, edges, pushHistory]);
+
+  const handleEdgeClick = useCallback((e: React.MouseEvent, edge: Edge) => {
+    if (!e.altKey) return;
+    e.preventDefault();
+    e.stopPropagation();
+    pushHistory(null, edges);
+    setEdges(eds => {
+      const remaining = eds.filter(ed => ed.id !== edge.id);
+      saveEdges(remaining);
+      return remaining;
+    });
+  }, [edges, setEdges, pushHistory]);
+
+  const handleEdgeContextMenu = useCallback((e: React.MouseEvent, edge: Edge) => {
+    e.preventDefault();
+    e.stopPropagation();
+    pushHistory(null, edges);
+    setEdges(eds => {
+      const remaining = eds.filter(ed => ed.id !== edge.id);
+      saveEdges(remaining);
+      return remaining;
+    });
+  }, [edges, setEdges, pushHistory]);
 
   return (
     <div className="relative w-full h-full">
@@ -391,14 +463,24 @@ export function HierarchyView({
         onNodeClick={handleNodeClick}
         onNodeDragStop={handleNodeDragStop}
         onConnect={handleConnect}
+        onEdgeClick={handleEdgeClick}
+        onEdgeContextMenu={handleEdgeContextMenu}
+        onEdgesDelete={(deletedEdges) => {
+          setEdges(eds => {
+            const remaining = eds.filter(e => !deletedEdges.find(d => d.id === e.id));
+            saveEdges(remaining);
+            return remaining;
+          });
+        }}
         onNodeMouseEnter={(_, node) => setHighlightedNodeId(node.id)}
         onNodeMouseLeave={() => setHighlightedNodeId(null)}
         nodesDraggable={true}
         nodesConnectable={true}
         elementsSelectable={true}
+        deleteKeyCode="Delete"
         defaultEdgeOptions={{ type: "default", animated: true, style: DEFAULT_EDGE_STYLE }}
-        fitView
-        fitViewOptions={{ padding: 0.25 }}
+        fitView={false}
+        defaultViewport={{ x: -80, y: -20, zoom: 0.55 }}
         proOptions={{ hideAttribution: true }}
         minZoom={0.15}
         maxZoom={1.5}
