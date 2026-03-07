@@ -41,14 +41,26 @@ const nodeTypes: NodeTypes = {
   hierarchy: HierarchyNode,
 };
 
+export interface SessionActivity {
+  agentId: string;
+  lastActiveMs: number;
+}
+
 interface HierarchyViewProps {
   agents: AgentData[];
   sessionCounts: Record<string, number>;
+  sessionActivity: Record<string, number>; // agentId -> last active timestamp ms
+  cronCounts: Record<string, number>;
   onNodeClick: (agentId: string | null) => void;
+  onModelChange: (agentId: string, model: string) => void;
+  onMemoryClick: (agentId: string) => void;
+  onPingClick: (agentId: string) => void;
+  onSkillsClick: (agentId: string) => void;
+  onCronClick: (agentId: string) => void;
+  onDeleteClick: (agentId: string) => void;
   selectedAgentId: string | null;
 }
 
-// Hardcoded agent definitions — always visible regardless of tRPC data
 const HARDCODED_AGENTS = [
   { id: "steve", name: "Steve", emoji: "\uD83E\uDDE0", role: "Strategie", color: "amber" },
   { id: "gary", name: "Gary", emoji: "\uD83D\uDCE3", role: "Marketing", color: "pink" },
@@ -59,20 +71,45 @@ const HARDCODED_AGENTS = [
   { id: "warren", name: "Warren", emoji: "\uD83D\uDCB0", role: "Finance", color: "emerald" },
   { id: "tom", name: "Tom", emoji: "\uD83D\uDCCB", role: "Tax", color: "yellow" },
   { id: "robert", name: "Robert", emoji: "\u2696\uFE0F", role: "Legal", color: "purple" },
-  { id: "tiago", name: "Tiago", emoji: "\uD83D\uDDC3\uFE0F", role: "Notion", color: "blue" },
+  { id: "tiago", name: "Tiago", emoji: "\uD83D\uDDD3\uFE0F", role: "Notion", color: "blue" },
   { id: "pieter", name: "Pieter", emoji: "\uD83D\uDCBB", role: "Tech", color: "zinc" },
 ] as const;
 
-function buildLayout(agents: AgentData[], sessionCounts: Record<string, number>) {
+function getOnlineStatus(lastActiveMs: number | undefined): "online" | "idle" | "inactive" {
+  if (!lastActiveMs) return "inactive";
+  const ago = Date.now() - lastActiveMs;
+  if (ago < 10 * 60 * 1000) return "online";
+  if (ago < 60 * 60 * 1000) return "idle";
+  return "inactive";
+}
+
+function formatLastActive(lastActiveMs: number | undefined): string | undefined {
+  if (!lastActiveMs) return undefined;
+  const ago = Date.now() - lastActiveMs;
+  if (ago < 60_000) return "just now";
+  if (ago < 3600_000) return `${Math.floor(ago / 60_000)}m ago`;
+  if (ago < 86400_000) return `${Math.floor(ago / 3600_000)}h ago`;
+  return `${Math.floor(ago / 86400_000)}d ago`;
+}
+
+function buildLayout(
+  agents: AgentData[],
+  sessionActivity: Record<string, number>,
+  cronCounts: Record<string, number>,
+  callbacks: {
+    onModelChange: (agentId: string, model: string) => void;
+    onMemoryClick: (agentId: string) => void;
+    onPingClick: (agentId: string) => void;
+    onSkillsClick: (agentId: string) => void;
+    onCronClick: (agentId: string) => void;
+    onDeleteClick: (agentId: string) => void;
+  }
+) {
   const nodes: HierarchyNodeType[] = [];
   const edges: Edge[] = [];
-
-  // Build lookup from tRPC data for optional enrichment (model, etc.)
   const agentLookup = new Map(agents.map((a) => [a.id, a]));
 
-  // Layout constants
-  const nodeWidth = 170;
-  const nodeSpacing = 200;
+  const nodeSpacing = 180; // wider spacing
   const totalWidth = (HARDCODED_AGENTS.length - 1) * nodeSpacing;
   const startX = -totalWidth / 2;
   const chefY = 0;
@@ -83,7 +120,7 @@ function buildLayout(agents: AgentData[], sessionCounts: Record<string, number>)
   nodes.push({
     id: "chef",
     type: "hierarchy",
-    position: { x: 0 - nodeWidth / 2 + 40, y: chefY },
+    position: { x: -45, y: chefY },
     data: {
       label: "Niko",
       emoji: "\uD83D\uDC51",
@@ -91,27 +128,40 @@ function buildLayout(agents: AgentData[], sessionCounts: Record<string, number>)
       isActive: true,
       isChef: true,
       color: "gold",
+      onlineStatus: "online" as const,
     },
   } as HierarchyNodeType);
 
   // Manager node
   const managerAgent = agentLookup.get("manager");
+  const managerModel = typeof managerAgent?.model === "string"
+    ? managerAgent.model
+    : (managerAgent?.model as Record<string, string> | undefined)?.primary;
   nodes.push({
     id: "agent-manager",
     type: "hierarchy",
-    position: { x: 0 - nodeWidth / 2 + 40, y: managerY },
+    position: { x: -45, y: managerY },
     data: {
       label: managerAgent?.name ?? "Manager",
       emoji: managerAgent?.emoji ?? AGENT_META.manager.emoji,
       role: AGENT_META.manager.role,
-      model: managerAgent?.model,
-      isActive: (sessionCounts["manager"] ?? 0) > 0,
+      model: managerModel,
+      isActive: getOnlineStatus(sessionActivity["manager"]) === "online",
+      isManager: true,
       color: AGENT_META.manager.color,
       agentId: "manager",
+      onlineStatus: getOnlineStatus(sessionActivity["manager"]),
+      lastActive: formatLastActive(sessionActivity["manager"]),
+      cronCount: cronCounts["manager"] ?? 0,
+      onModelChange: (m: string) => callbacks.onModelChange("main", m),
+      onMemoryClick: () => callbacks.onMemoryClick("manager"),
+      onPingClick: () => callbacks.onPingClick("manager"),
+      onSkillsClick: () => callbacks.onSkillsClick("manager"),
+      onCronClick: () => callbacks.onCronClick("manager"),
+      onDeleteClick: () => {},
     },
   } as HierarchyNodeType);
 
-  // Edge: Chef -> Manager
   edges.push({
     id: "edge-chef-manager",
     source: "chef",
@@ -120,10 +170,13 @@ function buildLayout(agents: AgentData[], sessionCounts: Record<string, number>)
     animated: true,
   });
 
-  // Hardcoded sub-agent nodes
+  // Sub-agents
   HARDCODED_AGENTS.forEach((def, i) => {
     const nodeId = `agent-${def.id}`;
     const live = agentLookup.get(def.id);
+    const liveModel = typeof live?.model === "string"
+      ? live.model
+      : (live?.model as Record<string, string> | undefined)?.primary;
 
     nodes.push({
       id: nodeId,
@@ -133,14 +186,22 @@ function buildLayout(agents: AgentData[], sessionCounts: Record<string, number>)
         label: live?.name ?? def.name,
         emoji: live?.emoji ?? def.emoji,
         role: def.role,
-        model: live?.model,
-        isActive: (sessionCounts[def.id] ?? 0) > 0,
+        model: liveModel,
+        isActive: getOnlineStatus(sessionActivity[def.id]) === "online",
         color: def.color,
         agentId: def.id,
+        onlineStatus: getOnlineStatus(sessionActivity[def.id]),
+        lastActive: formatLastActive(sessionActivity[def.id]),
+        cronCount: cronCounts[def.id] ?? 0,
+        onModelChange: (m: string) => callbacks.onModelChange(def.id, m),
+        onMemoryClick: () => callbacks.onMemoryClick(def.id),
+        onPingClick: () => callbacks.onPingClick(def.id),
+        onSkillsClick: () => callbacks.onSkillsClick(def.id),
+        onCronClick: () => callbacks.onCronClick(def.id),
+        onDeleteClick: () => callbacks.onDeleteClick(def.id),
       },
     } as HierarchyNodeType);
 
-    // Edge: Manager -> Agent
     edges.push({
       id: `edge-manager-${def.id}`,
       source: "agent-manager",
@@ -153,19 +214,40 @@ function buildLayout(agents: AgentData[], sessionCounts: Record<string, number>)
   return { nodes, edges };
 }
 
-export function HierarchyView({ agents, sessionCounts, onNodeClick, selectedAgentId }: HierarchyViewProps) {
-  const initialLayout = useMemo(() => buildLayout(agents, sessionCounts), [agents, sessionCounts]);
+export function HierarchyView({
+  agents, sessionActivity, cronCounts,
+  onNodeClick, onModelChange, onMemoryClick, onPingClick, onSkillsClick, onCronClick, onDeleteClick,
+  selectedAgentId,
+}: HierarchyViewProps) {
+  const callbacks = useMemo(() => ({
+    onModelChange, onMemoryClick, onPingClick, onSkillsClick, onCronClick, onDeleteClick,
+  }), [onModelChange, onMemoryClick, onPingClick, onSkillsClick, onCronClick, onDeleteClick]);
+
+  const initialLayout = useMemo(
+    () => buildLayout(agents, sessionActivity, cronCounts, callbacks),
+    [agents, sessionActivity, cronCounts, callbacks]
+  );
   const [nodes, setNodes, onNodesChange] = useNodesState(initialLayout.nodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialLayout.edges);
   const [highlightedNodeId, setHighlightedNodeId] = useState<string | null>(null);
 
   const resetLayout = useCallback(() => {
-    const layout = buildLayout(agents, sessionCounts);
+    const layout = buildLayout(agents, sessionActivity, cronCounts, callbacks);
     setNodes(layout.nodes);
     setEdges(layout.edges);
-  }, [agents, sessionCounts, setNodes, setEdges]);
+  }, [agents, sessionActivity, cronCounts, callbacks, setNodes, setEdges]);
 
-  // Apply highlighting
+  // Update node data when activity/cron changes without resetting positions
+  useMemo(() => {
+    const layout = buildLayout(agents, sessionActivity, cronCounts, callbacks);
+    const dataMap = new Map(layout.nodes.map(n => [n.id, n.data]));
+    setNodes(prev => prev.map(n => {
+      const newData = dataMap.get(n.id);
+      return newData ? { ...n, data: newData } : n;
+    }));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessionActivity, cronCounts]);
+
   const displayNodes = useMemo(() => {
     if (!highlightedNodeId) return nodes;
     const connectedIds = new Set<string>([highlightedNodeId]);
@@ -204,7 +286,6 @@ export function HierarchyView({ agents, sessionCounts, onNodeClick, selectedAgen
 
   return (
     <div className="relative w-full h-full">
-      {/* Reset button */}
       <div className="absolute top-3 right-3 z-20">
         <Button
           onClick={resetLayout}
@@ -226,6 +307,9 @@ export function HierarchyView({ agents, sessionCounts, onNodeClick, selectedAgen
         onNodeClick={handleNodeClick}
         onNodeMouseEnter={(_, node) => setHighlightedNodeId(node.id)}
         onNodeMouseLeave={() => setHighlightedNodeId(null)}
+        nodesDraggable={true}
+        nodesConnectable={false}
+        elementsSelectable={true}
         fitView
         fitViewOptions={{ padding: 0.3 }}
         proOptions={{ hideAttribution: true }}
