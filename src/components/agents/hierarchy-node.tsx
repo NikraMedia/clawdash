@@ -102,15 +102,19 @@ function HierarchyNodeComponent({ data }: NodeProps<HierarchyNodeType>) {
         isChef && "ring-1 ring-inset ring-amber-400/30",
         dimmed && "opacity-25 scale-[0.97]"
       )}
-      style={{ minWidth: isChef ? 180 : 170 }}
+      style={{
+        width: isChef || data.isManager ? 180 : 160,
+        height: isChef || data.isManager ? 180 : 160,
+        overflow: "hidden",
+      }}
     >
       <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-white/5 to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100 pointer-events-none" />
 
       <Handle
         type="target"
         position={Position.Top}
-        className="!h-2 !w-2 !border-2 !border-zinc-950 !bg-zinc-600 !opacity-0"
-        isConnectable={false}
+        className="!h-2 !w-2 !border-2 !border-zinc-950 !bg-zinc-600 !opacity-0 hover:!opacity-100"
+        isConnectable={true}
       />
 
       <div className="flex flex-col items-center gap-1.5 relative z-10 w-full text-center">
@@ -133,7 +137,7 @@ function HierarchyNodeComponent({ data }: NodeProps<HierarchyNodeType>) {
         </span>
 
         {/* Model Badge with Dropdown */}
-        {model && !isChef && (
+        {model && (
           <div className="relative" ref={dropdownRef}>
             <button
               onClick={(e) => {
@@ -237,8 +241,8 @@ function HierarchyNodeComponent({ data }: NodeProps<HierarchyNodeType>) {
       <Handle
         type="source"
         position={Position.Bottom}
-        className="!h-2 !w-2 !border-2 !border-zinc-950 !bg-zinc-600 !opacity-0"
-        isConnectable={false}
+        className="!h-2 !w-2 !border-2 !border-zinc-950 !bg-zinc-600 !opacity-0 hover:!opacity-100"
+        isConnectable={true}
       />
     </div>
   );

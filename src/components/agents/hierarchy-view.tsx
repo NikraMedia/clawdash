@@ -6,9 +6,11 @@ import {
   Background,
   useNodesState,
   useEdgesState,
+  addEdge,
   type Node,
   type Edge,
   type NodeTypes,
+  type Connection,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { HierarchyNode, type HierarchyNodeType } from "./hierarchy-node";
@@ -121,6 +123,7 @@ function buildLayout(
     id: "chef",
     type: "hierarchy",
     position: { x: -45, y: chefY },
+    style: { width: 180, height: 180 },
     data: {
       label: "Niko",
       emoji: "\uD83D\uDC51",
@@ -141,6 +144,7 @@ function buildLayout(
     id: "agent-manager",
     type: "hierarchy",
     position: { x: -45, y: managerY },
+    style: { width: 180, height: 180 },
     data: {
       label: managerAgent?.name ?? "Manager",
       emoji: managerAgent?.emoji ?? AGENT_META.manager.emoji,
@@ -182,6 +186,7 @@ function buildLayout(
       id: nodeId,
       type: "hierarchy",
       position: { x: startX + i * nodeSpacing, y: agentY },
+      style: { width: 160, height: 160 },
       data: {
         label: live?.name ?? def.name,
         emoji: live?.emoji ?? def.emoji,
@@ -214,6 +219,33 @@ function buildLayout(
   return { nodes, edges };
 }
 
+const POSITIONS_KEY = "clawdash-agent-positions";
+const EDGES_KEY = "clawdash-agent-edges";
+
+function loadSavedPositions(): Record<string, { x: number; y: number }> | null {
+  try {
+    const raw = localStorage.getItem(POSITIONS_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch { return null; }
+}
+
+function savePositions(nodes: Node[]) {
+  const positions: Record<string, { x: number; y: number }> = {};
+  nodes.forEach(n => { positions[n.id] = n.position; });
+  localStorage.setItem(POSITIONS_KEY, JSON.stringify(positions));
+}
+
+function loadSavedEdges(): Edge[] | null {
+  try {
+    const raw = localStorage.getItem(EDGES_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch { return null; }
+}
+
+function saveEdges(edges: Edge[]) {
+  localStorage.setItem(EDGES_KEY, JSON.stringify(edges));
+}
+
 export function HierarchyView({
   agents, sessionActivity, cronCounts,
   onNodeClick, onModelChange, onMemoryClick, onPingClick, onSkillsClick, onCronClick, onDeleteClick,
@@ -224,7 +256,23 @@ export function HierarchyView({
   }), [onModelChange, onMemoryClick, onPingClick, onSkillsClick, onCronClick, onDeleteClick]);
 
   const initialLayout = useMemo(
-    () => buildLayout(agents, sessionActivity, cronCounts, callbacks),
+    () => {
+      const layout = buildLayout(agents, sessionActivity, cronCounts, callbacks);
+      // Restore saved positions
+      const savedPositions = loadSavedPositions();
+      if (savedPositions) {
+        layout.nodes = layout.nodes.map(n => {
+          const saved = savedPositions[n.id];
+          return saved ? { ...n, position: saved } : n;
+        });
+      }
+      // Restore saved edges
+      const savedEdges = loadSavedEdges();
+      if (savedEdges) {
+        layout.edges = savedEdges;
+      }
+      return layout;
+    },
     [agents, sessionActivity, cronCounts, callbacks]
   );
   const [nodes, setNodes, onNodesChange] = useNodesState(initialLayout.nodes);
@@ -232,6 +280,8 @@ export function HierarchyView({
   const [highlightedNodeId, setHighlightedNodeId] = useState<string | null>(null);
 
   const resetLayout = useCallback(() => {
+    localStorage.removeItem(POSITIONS_KEY);
+    localStorage.removeItem(EDGES_KEY);
     const layout = buildLayout(agents, sessionActivity, cronCounts, callbacks);
     setNodes(layout.nodes);
     setEdges(layout.edges);
@@ -284,6 +334,28 @@ export function HierarchyView({
     onNodeClick(agentId);
   }, [onNodeClick]);
 
+  const handleNodeDragStop = useCallback(() => {
+    // Use timeout to ensure nodes state is updated
+    setTimeout(() => {
+      setNodes(currentNodes => {
+        savePositions(currentNodes);
+        return currentNodes;
+      });
+    }, 0);
+  }, [setNodes]);
+
+  const handleConnect = useCallback((connection: Connection) => {
+    setEdges(eds => {
+      const newEdges = addEdge({
+        ...connection,
+        style: { stroke: "#6366f1", strokeWidth: 1.5, opacity: 0.4 },
+        animated: true,
+      }, eds);
+      saveEdges(newEdges);
+      return newEdges;
+    });
+  }, [setEdges]);
+
   return (
     <div className="relative w-full h-full">
       <div className="absolute top-3 right-3 z-20">
@@ -305,10 +377,12 @@ export function HierarchyView({
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         onNodeClick={handleNodeClick}
+        onNodeDragStop={handleNodeDragStop}
+        onConnect={handleConnect}
         onNodeMouseEnter={(_, node) => setHighlightedNodeId(node.id)}
         onNodeMouseLeave={() => setHighlightedNodeId(null)}
         nodesDraggable={true}
-        nodesConnectable={false}
+        nodesConnectable={true}
         elementsSelectable={true}
         fitView
         fitViewOptions={{ padding: 0.3 }}
