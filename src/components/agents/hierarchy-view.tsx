@@ -122,18 +122,17 @@ function buildLayout(
   const edges: Edge[] = [];
   const agentLookup = new Map(agents.map((a) => [a.id, a]));
 
-  const nodeSpacing = 240;
-  const totalWidth = (HARDCODED_AGENTS.length - 1) * nodeSpacing;
-  const startX = -totalWidth / 2;
-  const chefY = 0;
-  const managerY = 220;
-  const agentY = 460;
+  const nodeSpacing = 180;
+  const startX = 30;
+  const chefY = 50;
+  const managerY = 200;
+  const agentY = 400;
 
   // Chef node
   nodes.push({
     id: "chef",
     type: "hierarchy",
-    position: { x: -CHEF_SIZE.width / 2, y: chefY },
+    position: { x: 550, y: chefY },
     style: { width: CHEF_SIZE.width, height: CHEF_SIZE.height },
     data: {
       label: "Niko",
@@ -154,7 +153,7 @@ function buildLayout(
   nodes.push({
     id: "agent-manager",
     type: "hierarchy",
-    position: { x: -MANAGER_SIZE.width / 2, y: managerY },
+    position: { x: 530, y: managerY },
     style: { width: MANAGER_SIZE.width, height: MANAGER_SIZE.height },
     data: {
       label: managerAgent?.name ?? "Manager",
@@ -182,7 +181,7 @@ function buildLayout(
     id: "edge-chef-manager",
     source: "chef",
     target: "agent-manager",
-    type: "smoothstep",
+    type: "default",
     style: { ...DEFAULT_EDGE_STYLE, stroke: "#fbbf24" },
     animated: true,
   });
@@ -225,7 +224,7 @@ function buildLayout(
       id: `edge-manager-${def.id}`,
       source: "agent-manager",
       target: nodeId,
-      type: "smoothstep",
+      type: "default",
       style: DEFAULT_EDGE_STYLE,
       animated: true,
     });
@@ -360,7 +359,7 @@ export function HierarchyView({
     setEdges(eds => {
       const newEdges = addEdge({
         ...connection,
-        type: "smoothstep",
+        type: "default",
         style: DEFAULT_EDGE_STYLE,
         animated: true,
       }, eds);
@@ -397,7 +396,7 @@ export function HierarchyView({
         nodesDraggable={true}
         nodesConnectable={true}
         elementsSelectable={true}
-        defaultEdgeOptions={{ type: "smoothstep", animated: true, style: DEFAULT_EDGE_STYLE }}
+        defaultEdgeOptions={{ type: "default", animated: true, style: DEFAULT_EDGE_STYLE }}
         fitView
         fitViewOptions={{ padding: 0.25 }}
         proOptions={{ hideAttribution: true }}
