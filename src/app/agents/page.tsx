@@ -316,16 +316,53 @@ function MemoryPanel({ agent, onToast }: { agent: AgentData; onToast: (msg: stri
 
 /* ─── Skills Panel ─── */
 function SkillsPanel({ agent, onToast }: { agent: AgentData; onToast: (msg: string, type: "success" | "error") => void }) {
-  const [newSkillName, setNewSkillName] = useState("");
+  const [searchFilter, setSearchFilter] = useState("");
+  const [showMarketplace, setShowMarketplace] = useState(false);
+  const [marketplaceQuery, setMarketplaceQuery] = useState("");
+  const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const trpc = useTRPC();
-  const { data, isLoading, refetch } = useQuery(trpc.agents.listSkills.queryOptions());
+  const queryClient = useQueryClient();
+  const realId = AGENT_ID_MAP[agent.id] ?? agent.id;
+
+  const { data, isLoading, refetch } = useQuery(
+    trpc.agents.getSkills.queryOptions({ agentId: realId })
+  );
+
+  const { data: searchData, isLoading: searchLoading } = useQuery({
+    ...trpc.agents.searchMarketplace.queryOptions({ query: marketplaceQuery }),
+    enabled: showMarketplace && marketplaceQuery.length >= 2,
+  });
+
+  const toggleMutation = useMutation(
+    trpc.agents.toggleSkill.mutationOptions({
+      onSuccess: () => { refetch(); },
+      onError: (err) => onToast(`Toggle fehlgeschlagen: ${err.message}`, "error"),
+    })
+  );
 
   const installMutation = useMutation(
     trpc.agents.installSkill.mutationOptions({
-      onSuccess: () => { onToast("Skill installiert", "success"); setNewSkillName(""); refetch(); },
+      onSuccess: () => { onToast("Skill installiert!", "success"); refetch(); setShowMarketplace(false); },
       onError: (err) => onToast(`Install fehlgeschlagen: ${err.message}`, "error"),
     })
   );
+
+  const deleteMutation = useMutation(
+    trpc.agents.deleteSkill.mutationOptions({
+      onSuccess: () => { onToast("Skill gelöscht", "success"); refetch(); setDeleteConfirm(null); },
+      onError: (err) => onToast(`Löschen fehlgeschlagen: ${err.message}`, "error"),
+    })
+  );
+
+  const skills = data?.skills ?? [];
+  const systemSkills = skills.filter(s => s.isSystem && (searchFilter === "" || s.name.toLowerCase().includes(searchFilter.toLowerCase()) || s.description.toLowerCase().includes(searchFilter.toLowerCase())));
+  const customSkills = skills.filter(s => !s.isSystem && (searchFilter === "" || s.name.toLowerCase().includes(searchFilter.toLowerCase()) || s.description.toLowerCase().includes(searchFilter.toLowerCase())));
+
+  const skillIcons: Record<string, string> = {
+    "coding-agent": "💻", github: "🐙", weather: "🌤️", gemini: "✨", browser: "🌐",
+    "skill-creator": "🛠️", summarize: "📝", "video-frames": "🎬", clawhub: "📦",
+    "gh-issues": "🐛", healthcheck: "🛡️", "openai-whisper": "🎤",
+  };
 
   return (
     <div className="flex h-full flex-col">
@@ -334,38 +371,193 @@ function SkillsPanel({ agent, onToast }: { agent: AgentData; onToast: (msg: stri
           <BookOpen className="h-4 w-4 text-blue-400" />
           <h2 className="text-sm font-semibold text-zinc-100">Skills - {agent.name ?? agent.id}</h2>
         </div>
+        <Button onClick={() => refetch()} variant="ghost" size="sm" className="h-7 text-[11px] text-zinc-400">
+          <RefreshCw className="h-3 w-3" />
+        </Button>
       </div>
+
+      {/* Search + Marketplace Button */}
+      <div className="flex items-center gap-2 px-4 py-3 border-b border-zinc-800/40 shrink-0">
+        <div className="relative flex-1">
+          <input value={searchFilter} onChange={(e) => setSearchFilter(e.target.value)}
+            placeholder="Skills durchsuchen..."
+            className="w-full bg-zinc-900 border border-zinc-700/60 rounded-lg pl-3 pr-8 py-1.5 text-sm text-zinc-200 placeholder:text-zinc-600 focus:outline-none focus:ring-1 focus:ring-indigo-500/50"
+          />
+          {searchFilter && (
+            <button onClick={() => setSearchFilter("")} className="absolute right-2 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-300">
+              <X className="h-3.5 w-3.5" />
+            </button>
+          )}
+        </div>
+        <Button onClick={() => setShowMarketplace(true)} size="sm"
+          className="h-8 shrink-0 bg-indigo-600 hover:bg-indigo-500 text-[11px]">
+          <Plus className="h-3.5 w-3.5 mr-1" /> Marketplace
+        </Button>
+      </div>
+
       <div className="flex-1 overflow-y-auto min-h-0 p-4">
         {isLoading ? (
           <div className="flex items-center justify-center py-12"><Loader2 className="h-5 w-5 animate-spin text-zinc-600" /></div>
         ) : (
-          <div className="space-y-2">
-            {(data?.skills ?? []).map((skill) => (
-              <div key={skill.name} className="flex items-center justify-between p-2.5 rounded-lg bg-zinc-900/60 border border-zinc-800/40">
-                <div>
-                  <p className="text-sm text-zinc-200 font-medium">{skill.name}</p>
-                  {skill.description && <p className="text-[11px] text-zinc-500 mt-0.5">{skill.description}</p>}
-                  <span className={cn("text-[9px] mt-0.5 inline-block px-1.5 py-0.5 rounded",
-                    skill.source === "global" ? "bg-indigo-500/10 text-indigo-400" : "bg-emerald-500/10 text-emerald-400"
-                  )}>{skill.source}</span>
-                </div>
-                <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />
+          <div className="space-y-5">
+            {/* System Skills */}
+            <div>
+              <h3 className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider mb-2">
+                System Skills <span className="text-zinc-600">({systemSkills.length})</span>
+              </h3>
+              <div className="space-y-1.5">
+                {systemSkills.map((skill) => (
+                  <div key={skill.name} className="flex items-center gap-3 p-2.5 rounded-lg bg-zinc-900/60 border border-zinc-800/40 hover:border-zinc-700/60 transition-colors group">
+                    <span className="text-base shrink-0 w-6 text-center">{skillIcons[skill.name] ?? "📦"}</span>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm text-zinc-200 font-medium truncate">{skill.name}</p>
+                        {skill.version !== "—" && (
+                          <span className="text-[9px] text-zinc-600 font-mono">{skill.version}</span>
+                        )}
+                      </div>
+                      <p className="text-[11px] text-zinc-500 truncate">{skill.description}</p>
+                    </div>
+                    <button
+                      onClick={() => toggleMutation.mutate({ agentId: realId, skillName: skill.name, enabled: !skill.isEnabled })}
+                      className={cn(
+                        "relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full transition-colors duration-200",
+                        skill.isEnabled ? "bg-emerald-600" : "bg-zinc-700"
+                      )}
+                    >
+                      <span className={cn(
+                        "pointer-events-none inline-block h-4 w-4 rounded-full bg-white shadow transform transition-transform duration-200 mt-0.5",
+                        skill.isEnabled ? "translate-x-4 ml-0.5" : "translate-x-0.5"
+                      )} />
+                    </button>
+                  </div>
+                ))}
               </div>
-            ))}
+            </div>
+
+            {/* Custom Skills */}
+            <div>
+              <h3 className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider mb-2">
+                Custom Skills <span className="text-zinc-600">({customSkills.length})</span>
+              </h3>
+              {customSkills.length === 0 ? (
+                <div className="text-center py-6">
+                  <p className="text-[11px] text-zinc-600">Keine Custom Skills installiert</p>
+                  <p className="text-[10px] text-zinc-700 mt-1">Klick &quot;Marketplace&quot; zum Installieren</p>
+                </div>
+              ) : (
+                <div className="space-y-1.5">
+                  {customSkills.map((skill) => (
+                    <div key={skill.name} className="flex items-center gap-3 p-2.5 rounded-lg bg-zinc-900/60 border border-zinc-800/40 hover:border-zinc-700/60 transition-colors group">
+                      <span className="text-base shrink-0 w-6 text-center">{skillIcons[skill.name] ?? "🔧"}</span>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <p className="text-sm text-zinc-200 font-medium truncate">{skill.name}</p>
+                          {skill.version !== "—" && (
+                            <span className="text-[9px] text-zinc-600 font-mono">{skill.version}</span>
+                          )}
+                        </div>
+                        <p className="text-[11px] text-zinc-500 truncate">{skill.description}</p>
+                      </div>
+                      <button
+                        onClick={() => toggleMutation.mutate({ agentId: realId, skillName: skill.name, enabled: !skill.isEnabled })}
+                        className={cn(
+                          "relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full transition-colors duration-200",
+                          skill.isEnabled ? "bg-emerald-600" : "bg-zinc-700"
+                        )}
+                      >
+                        <span className={cn(
+                          "pointer-events-none inline-block h-4 w-4 rounded-full bg-white shadow transform transition-transform duration-200 mt-0.5",
+                          skill.isEnabled ? "translate-x-4 ml-0.5" : "translate-x-0.5"
+                        )} />
+                      </button>
+                      <button
+                        onClick={() => setDeleteConfirm(skill.name)}
+                        className="opacity-0 group-hover:opacity-100 text-zinc-600 hover:text-red-400 transition-all shrink-0"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         )}
-        <div className="mt-4 flex items-center gap-2">
-          <input value={newSkillName} onChange={(e) => setNewSkillName(e.target.value)}
-            placeholder="Skill-Name..."
-            className="flex-1 bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-1.5 text-sm text-zinc-200 placeholder:text-zinc-600"
-          />
-          <Button onClick={() => newSkillName.trim() && installMutation.mutate({ skillName: newSkillName.trim() })}
-            disabled={!newSkillName.trim() || installMutation.isPending}
-            size="sm" className="h-8 bg-indigo-600 hover:bg-indigo-500">
-            {installMutation.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Plus className="h-3 w-3" />}
-          </Button>
-        </div>
       </div>
+
+      {/* Marketplace Modal */}
+      {showMarketplace && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={() => setShowMarketplace(false)}>
+          <div className="bg-zinc-900 border border-zinc-700 rounded-2xl w-[500px] max-h-[70vh] flex flex-col shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-5 py-4 border-b border-zinc-800/60">
+              <h2 className="text-base font-semibold text-zinc-100">Marketplace — ClawHub</h2>
+              <button onClick={() => setShowMarketplace(false)} className="text-zinc-500 hover:text-zinc-300"><X className="h-5 w-5" /></button>
+            </div>
+            <div className="px-5 py-3 border-b border-zinc-800/40">
+              <input
+                value={marketplaceQuery}
+                onChange={(e) => setMarketplaceQuery(e.target.value)}
+                placeholder="Search skills on ClawHub..."
+                autoFocus
+                className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-zinc-200 placeholder:text-zinc-600 focus:outline-none focus:ring-1 focus:ring-indigo-500/50"
+              />
+            </div>
+            <div className="flex-1 overflow-y-auto min-h-0 p-5">
+              {!marketplaceQuery || marketplaceQuery.length < 2 ? (
+                <p className="text-center text-sm text-zinc-600 py-8">Mindestens 2 Zeichen eingeben...</p>
+              ) : searchLoading ? (
+                <div className="flex items-center justify-center py-8"><Loader2 className="h-5 w-5 animate-spin text-zinc-600" /></div>
+              ) : (searchData?.results ?? []).length === 0 ? (
+                <p className="text-center text-sm text-zinc-600 py-8">Keine Ergebnisse für &quot;{marketplaceQuery}&quot;</p>
+              ) : (
+                <div className="space-y-2">
+                  {(searchData?.results ?? []).map((r) => (
+                    <div key={r.name} className="flex items-center justify-between p-3 rounded-lg bg-zinc-800/60 border border-zinc-700/40">
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-medium text-zinc-200">{r.name}</p>
+                        <p className="text-[11px] text-zinc-500 truncate">{r.description}</p>
+                      </div>
+                      <Button
+                        onClick={() => installMutation.mutate({ skillName: r.name })}
+                        disabled={installMutation.isPending}
+                        size="sm"
+                        className="h-7 ml-3 shrink-0 bg-emerald-600 hover:bg-emerald-500 text-[11px]"
+                      >
+                        {installMutation.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : "Install"}
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {deleteConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={() => setDeleteConfirm(null)}>
+          <div className="bg-zinc-900 border border-zinc-700 rounded-2xl w-[380px] p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center gap-3 mb-4">
+              <Trash2 className="h-5 w-5 text-red-400" />
+              <h2 className="text-base font-semibold text-zinc-100">Skill löschen</h2>
+            </div>
+            <p className="text-sm text-zinc-400 mb-6">
+              Skill <strong className="text-zinc-200">{deleteConfirm}</strong> wirklich löschen?
+            </p>
+            <div className="flex gap-2">
+              <Button onClick={() => setDeleteConfirm(null)} variant="ghost" className="flex-1">Abbrechen</Button>
+              <Button onClick={() => deleteMutation.mutate({ skillName: deleteConfirm })}
+                disabled={deleteMutation.isPending}
+                className="flex-1 bg-red-600 hover:bg-red-500">
+                {deleteMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}
+                Löschen
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

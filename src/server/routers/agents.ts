@@ -1,14 +1,13 @@
 import { z } from "zod";
 import { router, publicProcedure } from "../trpc";
-import { readFileSync, writeFileSync, mkdirSync, rmSync, readdirSync, statSync } from "fs";
+import { readFileSync, writeFileSync, mkdirSync, rmSync, readdirSync, statSync, existsSync } from "fs";
 import { join } from "path";
 
 const OPENCLAW_JSON = "C:\\Users\\Nikra\\.openclaw\\openclaw.json";
 const DEPARTMENTS_DIR = "C:\\Users\\Nikra\\.openclaw\\departments";
-const SKILLS_DIRS = [
-  "C:\\Users\\Nikra\\AppData\\Roaming\\npm\\node_modules\\openclaw\\skills",
-  "C:\\Users\\Nikra\\.openclaw\\workspace\\skills",
-];
+const SYSTEM_SKILLS_DIR = "C:\\Users\\Nikra\\AppData\\Roaming\\npm\\node_modules\\openclaw\\skills";
+const CUSTOM_SKILLS_DIR = "C:\\Users\\Nikra\\.openclaw\\workspace\\skills";
+const SKILLS_DIRS = [SYSTEM_SKILLS_DIR, CUSTOM_SKILLS_DIR];
 
 function readConfig(): Record<string, unknown> {
   return JSON.parse(readFileSync(OPENCLAW_JSON, "utf8"));
@@ -206,6 +205,116 @@ export const agentsRouter = router({
     return { skills };
   }),
 
+  getSkills: publicProcedure
+    .input(z.object({ agentId: z.string() }))
+    .query(({ input }) => {
+      const config = readConfig();
+      const agents = config.agents as Record<string, unknown> | undefined;
+      const configs = (agents?.configs ?? {}) as Record<string, Record<string, unknown>>;
+      const agentConfig = configs[input.agentId] ?? {};
+      const disabledSkills = (agentConfig.disabledSkills ?? []) as string[];
+
+      const skills: Array<{
+        name: string;
+        description: string;
+        version: string;
+        isSystem: boolean;
+        isEnabled: boolean;
+      }> = [];
+
+      const readSkillsFromDir = (dir: string, isSystem: boolean) => {
+        try {
+          const entries = readdirSync(dir, { withFileTypes: true });
+          for (const entry of entries) {
+            if (!entry.isDirectory()) continue;
+            const skillPath = join(dir, entry.name);
+            let description = "";
+            let version = "—";
+            let displayName = entry.name;
+
+            // Try SKILL.md
+            try {
+              const skillMd = readFileSync(join(skillPath, "SKILL.md"), "utf8");
+              const nameMatch = skillMd.match(/^#\s+(.+)/m);
+              if (nameMatch) displayName = nameMatch[1].trim();
+              const descMatch = skillMd.match(/^#[^\n]*\n+([^\n]+)/);
+              if (descMatch) description = descMatch[1].slice(0, 120);
+            } catch { /* no SKILL.md */ }
+
+            // Try package.json for version
+            try {
+              const pkg = JSON.parse(readFileSync(join(skillPath, "package.json"), "utf8"));
+              if (pkg.version) version = pkg.version;
+              if (pkg.description && !description) description = pkg.description.slice(0, 120);
+            } catch { /* no package.json */ }
+
+            skills.push({
+              name: entry.name,
+              description: description || displayName,
+              version,
+              isSystem,
+              isEnabled: !disabledSkills.includes(entry.name),
+            });
+          }
+        } catch { /* dir doesn't exist */ }
+      };
+
+      readSkillsFromDir(SYSTEM_SKILLS_DIR, true);
+      readSkillsFromDir(CUSTOM_SKILLS_DIR, false);
+
+      return { skills, disabledSkills };
+    }),
+
+  toggleSkill: publicProcedure
+    .input(z.object({ agentId: z.string(), skillName: z.string(), enabled: z.boolean() }))
+    .mutation(({ input }) => {
+      const config = readConfig();
+      const agents = config.agents as Record<string, unknown>;
+      if (!agents.configs) agents.configs = {};
+      const configs = agents.configs as Record<string, Record<string, unknown>>;
+      if (!configs[input.agentId]) configs[input.agentId] = {};
+      const agentConfig = configs[input.agentId];
+      let disabledSkills = (agentConfig.disabledSkills ?? []) as string[];
+
+      if (input.enabled) {
+        disabledSkills = disabledSkills.filter((s: string) => s !== input.skillName);
+      } else {
+        if (!disabledSkills.includes(input.skillName)) {
+          disabledSkills.push(input.skillName);
+        }
+      }
+      agentConfig.disabledSkills = disabledSkills;
+      writeConfig(config);
+      return { ok: true, disabledSkills };
+    }),
+
+  searchMarketplace: publicProcedure
+    .input(z.object({ query: z.string() }))
+    .query(async ({ input }) => {
+      const { execSync } = await import("child_process");
+      try {
+        const output = execSync(`clawhub search ${input.query}`, {
+          encoding: "utf8",
+          timeout: 30000,
+        });
+        // Parse clawhub search output — each result is typically: name - description
+        const results: Array<{ name: string; description: string }> = [];
+        for (const line of output.split("\n")) {
+          const trimmed = line.trim();
+          if (!trimmed || trimmed.startsWith("Searching") || trimmed.startsWith("Found") || trimmed.startsWith("No ")) continue;
+          const match = trimmed.match(/^([^\s]+)\s*[-–—]\s*(.+)$/);
+          if (match) {
+            results.push({ name: match[1], description: match[2].trim() });
+          } else if (trimmed.length > 0) {
+            results.push({ name: trimmed.split(/\s/)[0], description: trimmed });
+          }
+        }
+        return { results, raw: output };
+      } catch (err) {
+        return { results: [], raw: (err as Error).message };
+      }
+    }),
+
   installSkill: publicProcedure
     .input(z.object({ skillName: z.string() }))
     .mutation(async ({ input }) => {
@@ -219,5 +328,24 @@ export const agentsRouter = router({
       } catch (err) {
         throw new Error(`Failed to install skill: ${(err as Error).message}`);
       }
+    }),
+
+  deleteSkill: publicProcedure
+    .input(z.object({ skillName: z.string() }))
+    .mutation(async ({ input }) => {
+      // Only allow deleting custom skills
+      const customPath = join(CUSTOM_SKILLS_DIR, input.skillName);
+      if (!existsSync(customPath)) {
+        throw new Error(`Skill "${input.skillName}" not found in custom skills`);
+      }
+      // Try clawhub uninstall first, fall back to direct delete
+      const { execSync } = await import("child_process");
+      try {
+        execSync(`clawhub uninstall ${input.skillName}`, { encoding: "utf8", timeout: 30000 });
+      } catch {
+        // Fallback: direct delete
+        rmSync(customPath, { recursive: true, force: true });
+      }
+      return { ok: true };
     }),
 });
