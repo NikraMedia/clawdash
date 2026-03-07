@@ -30,6 +30,7 @@ import {
 
 const navItems = [
   { href: "/", label: "Home", icon: Home },
+  { href: "/agents", label: "Agents", icon: Bot },
   { href: "/cron", label: "Cron", icon: Clock },
   { href: "/activity", label: "Activity", icon: Activity },
   { href: "/system", label: "System", icon: Settings },
