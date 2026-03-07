@@ -51,7 +51,7 @@ export interface SessionActivity {
 interface HierarchyViewProps {
   agents: AgentData[];
   sessionCounts: Record<string, number>;
-  sessionActivity: Record<string, number>; // agentId -> last active timestamp ms
+  sessionActivity: Record<string, number>;
   cronCounts: Record<string, number>;
   onNodeClick: (agentId: string | null) => void;
   onModelChange: (agentId: string, model: string) => void;
@@ -77,6 +77,11 @@ const HARDCODED_AGENTS = [
   { id: "pieter", name: "Pieter", emoji: "\uD83D\uDCBB", role: "Tech", color: "zinc" },
 ] as const;
 
+// Node sizes per spec
+const SUB_AGENT_SIZE = { width: 220, height: 200 };
+const MANAGER_SIZE = { width: 240, height: 180 };
+const CHEF_SIZE = { width: 220, height: 160 };
+
 function getOnlineStatus(lastActiveMs: number | undefined): "online" | "idle" | "inactive" {
   if (!lastActiveMs) return "inactive";
   const ago = Date.now() - lastActiveMs;
@@ -94,11 +99,17 @@ function formatLastActive(lastActiveMs: number | undefined): string | undefined 
   return `${Math.floor(ago / 86400_000)}d ago`;
 }
 
+const DEFAULT_EDGE_STYLE = {
+  stroke: "#4f46e5",
+  strokeWidth: 2,
+};
+
 function buildLayout(
   agents: AgentData[],
   sessionActivity: Record<string, number>,
   cronCounts: Record<string, number>,
   callbacks: {
+    onNodeClick: (agentId: string | null) => void;
     onModelChange: (agentId: string, model: string) => void;
     onMemoryClick: (agentId: string) => void;
     onPingClick: (agentId: string) => void;
@@ -111,19 +122,19 @@ function buildLayout(
   const edges: Edge[] = [];
   const agentLookup = new Map(agents.map((a) => [a.id, a]));
 
-  const nodeSpacing = 180; // wider spacing
+  const nodeSpacing = 240;
   const totalWidth = (HARDCODED_AGENTS.length - 1) * nodeSpacing;
   const startX = -totalWidth / 2;
   const chefY = 0;
-  const managerY = 180;
-  const agentY = 380;
+  const managerY = 220;
+  const agentY = 460;
 
   // Chef node
   nodes.push({
     id: "chef",
     type: "hierarchy",
-    position: { x: -45, y: chefY },
-    style: { width: 180, height: 180 },
+    position: { x: -CHEF_SIZE.width / 2, y: chefY },
+    style: { width: CHEF_SIZE.width, height: CHEF_SIZE.height },
     data: {
       label: "Niko",
       emoji: "\uD83D\uDC51",
@@ -143,8 +154,8 @@ function buildLayout(
   nodes.push({
     id: "agent-manager",
     type: "hierarchy",
-    position: { x: -45, y: managerY },
-    style: { width: 180, height: 180 },
+    position: { x: -MANAGER_SIZE.width / 2, y: managerY },
+    style: { width: MANAGER_SIZE.width, height: MANAGER_SIZE.height },
     data: {
       label: managerAgent?.name ?? "Manager",
       emoji: managerAgent?.emoji ?? AGENT_META.manager.emoji,
@@ -158,6 +169,7 @@ function buildLayout(
       lastActive: formatLastActive(sessionActivity["manager"]),
       cronCount: cronCounts["manager"] ?? 0,
       onModelChange: (m: string) => callbacks.onModelChange("main", m),
+      onChatClick: () => callbacks.onNodeClick("manager"),
       onMemoryClick: () => callbacks.onMemoryClick("manager"),
       onPingClick: () => callbacks.onPingClick("manager"),
       onSkillsClick: () => callbacks.onSkillsClick("manager"),
@@ -170,7 +182,8 @@ function buildLayout(
     id: "edge-chef-manager",
     source: "chef",
     target: "agent-manager",
-    style: { stroke: "#fbbf24", strokeWidth: 2, opacity: 0.6 },
+    type: "smoothstep",
+    style: { ...DEFAULT_EDGE_STYLE, stroke: "#fbbf24" },
     animated: true,
   });
 
@@ -186,7 +199,7 @@ function buildLayout(
       id: nodeId,
       type: "hierarchy",
       position: { x: startX + i * nodeSpacing, y: agentY },
-      style: { width: 160, height: 160 },
+      style: { width: SUB_AGENT_SIZE.width, height: SUB_AGENT_SIZE.height },
       data: {
         label: live?.name ?? def.name,
         emoji: live?.emoji ?? def.emoji,
@@ -199,6 +212,7 @@ function buildLayout(
         lastActive: formatLastActive(sessionActivity[def.id]),
         cronCount: cronCounts[def.id] ?? 0,
         onModelChange: (m: string) => callbacks.onModelChange(def.id, m),
+        onChatClick: () => callbacks.onNodeClick(def.id),
         onMemoryClick: () => callbacks.onMemoryClick(def.id),
         onPingClick: () => callbacks.onPingClick(def.id),
         onSkillsClick: () => callbacks.onSkillsClick(def.id),
@@ -211,7 +225,8 @@ function buildLayout(
       id: `edge-manager-${def.id}`,
       source: "agent-manager",
       target: nodeId,
-      style: { stroke: "#6366f1", strokeWidth: 1.5, opacity: 0.4 },
+      type: "smoothstep",
+      style: DEFAULT_EDGE_STYLE,
       animated: true,
     });
   });
@@ -252,13 +267,12 @@ export function HierarchyView({
   selectedAgentId,
 }: HierarchyViewProps) {
   const callbacks = useMemo(() => ({
-    onModelChange, onMemoryClick, onPingClick, onSkillsClick, onCronClick, onDeleteClick,
-  }), [onModelChange, onMemoryClick, onPingClick, onSkillsClick, onCronClick, onDeleteClick]);
+    onNodeClick, onModelChange, onMemoryClick, onPingClick, onSkillsClick, onCronClick, onDeleteClick,
+  }), [onNodeClick, onModelChange, onMemoryClick, onPingClick, onSkillsClick, onCronClick, onDeleteClick]);
 
   const initialLayout = useMemo(
     () => {
       const layout = buildLayout(agents, sessionActivity, cronCounts, callbacks);
-      // Restore saved positions
       const savedPositions = loadSavedPositions();
       if (savedPositions) {
         layout.nodes = layout.nodes.map(n => {
@@ -266,7 +280,6 @@ export function HierarchyView({
           return saved ? { ...n, position: saved } : n;
         });
       }
-      // Restore saved edges
       const savedEdges = loadSavedEdges();
       if (savedEdges) {
         layout.edges = savedEdges;
@@ -322,7 +335,7 @@ export function HierarchyView({
         style: {
           ...e.style,
           opacity: related ? 1 : 0.08,
-          strokeWidth: related ? 2.5 : (e.style?.strokeWidth as number),
+          strokeWidth: related ? 3 : (e.style?.strokeWidth as number),
         },
       };
     });
@@ -335,7 +348,6 @@ export function HierarchyView({
   }, [onNodeClick]);
 
   const handleNodeDragStop = useCallback(() => {
-    // Use timeout to ensure nodes state is updated
     setTimeout(() => {
       setNodes(currentNodes => {
         savePositions(currentNodes);
@@ -348,7 +360,8 @@ export function HierarchyView({
     setEdges(eds => {
       const newEdges = addEdge({
         ...connection,
-        style: { stroke: "#6366f1", strokeWidth: 1.5, opacity: 0.4 },
+        type: "smoothstep",
+        style: DEFAULT_EDGE_STYLE,
         animated: true,
       }, eds);
       saveEdges(newEdges);
@@ -384,10 +397,11 @@ export function HierarchyView({
         nodesDraggable={true}
         nodesConnectable={true}
         elementsSelectable={true}
+        defaultEdgeOptions={{ type: "smoothstep", animated: true, style: DEFAULT_EDGE_STYLE }}
         fitView
-        fitViewOptions={{ padding: 0.3 }}
+        fitViewOptions={{ padding: 0.25 }}
         proOptions={{ hideAttribution: true }}
-        minZoom={0.2}
+        minZoom={0.15}
         maxZoom={1.5}
         className="z-0"
       >
