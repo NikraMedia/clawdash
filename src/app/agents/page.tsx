@@ -33,18 +33,18 @@ import { Users } from "lucide-react";
 
 /* ─── Types ─── */
 const AGENT_META: Record<string, { role: string; color: string }> = {
-  manager: { role: "COO", color: "indigo" },
-  steve: { role: "CEO", color: "amber" },
-  gary: { role: "Marketing", color: "pink" },
-  jimmy: { role: "Content", color: "orange" },
-  neil: { role: "SEO", color: "green" },
-  nate: { role: "Analytics", color: "cyan" },
-  alex: { role: "Sales", color: "red" },
-  warren: { role: "Finance", color: "emerald" },
-  tom: { role: "Tax", color: "yellow" },
-  robert: { role: "Legal", color: "purple" },
-  tiago: { role: "Notion", color: "blue" },
-  pieter: { role: "Tech", color: "zinc" },
+  manager: { role: "COO", color: "indigo" }, main: { role: "COO", color: "indigo" },
+  steve: { role: "CEO", color: "amber" }, ceo: { role: "CEO", color: "amber" },
+  gary: { role: "Marketing", color: "pink" }, marketing: { role: "Marketing", color: "pink" },
+  jimmy: { role: "Content", color: "orange" }, content: { role: "Content", color: "orange" },
+  neil: { role: "SEO", color: "green" }, seo: { role: "SEO", color: "green" },
+  nate: { role: "Analytics", color: "cyan" }, analytics: { role: "Analytics", color: "cyan" },
+  alex: { role: "Sales", color: "red" }, sales: { role: "Sales", color: "red" },
+  warren: { role: "Finance", color: "emerald" }, finance: { role: "Finance", color: "emerald" },
+  tom: { role: "Tax", color: "yellow" }, tax: { role: "Tax", color: "yellow" },
+  robert: { role: "Legal", color: "purple" }, legal: { role: "Legal", color: "purple" },
+  tiago: { role: "Notion", color: "blue" }, "notion-systems": { role: "Notion", color: "blue" },
+  pieter: { role: "Tech", color: "zinc" }, tech: { role: "Tech", color: "zinc" },
 };
 
 const AGENT_DISPLAY_NAMES: Record<string, string> = {
