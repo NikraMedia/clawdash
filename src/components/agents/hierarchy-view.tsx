@@ -15,6 +15,7 @@ import {
 import "@xyflow/react/dist/style.css";
 import { HierarchyNode, type HierarchyNodeType } from "./hierarchy-node";
 import { RotateCcw } from "lucide-react";
+import { useMediaQuery } from "@/hooks/use-media-query";
 import { Button } from "@/components/ui/button";
 
 interface AgentData {
@@ -266,6 +267,7 @@ export function HierarchyView({
   onNodeClick, onModelChange, onMemoryClick, onPingClick, onSkillsClick, onCronClick, onDeleteClick,
   selectedAgentId, activeRoundtableAgentId,
 }: HierarchyViewProps) {
+  const isDesktop = useMediaQuery("(min-width: 768px)");
   const callbacks = useMemo(() => ({
     onNodeClick, onModelChange, onMemoryClick, onPingClick, onSkillsClick, onCronClick, onDeleteClick,
   }), [onNodeClick, onModelChange, onMemoryClick, onPingClick, onSkillsClick, onCronClick, onDeleteClick]);
@@ -454,7 +456,7 @@ export function HierarchyView({
   }, [edges, setEdges, pushHistory]);
 
   return (
-    <div className="relative w-full h-full">
+    <div className="relative w-full h-full" style={{ touchAction: "none" }}>
       <div className="absolute top-3 right-3 z-20">
         <Button
           onClick={resetLayout}
@@ -493,10 +495,16 @@ export function HierarchyView({
         deleteKeyCode="Delete"
         defaultEdgeOptions={{ type: "default", animated: true, style: DEFAULT_EDGE_STYLE }}
         fitView={false}
-        defaultViewport={{ x: -80, y: -20, zoom: 0.55 }}
+        defaultViewport={isDesktop ? { x: -80, y: -20, zoom: 0.55 } : { x: 10, y: 10, zoom: 0.35 }}
         proOptions={{ hideAttribution: true }}
         minZoom={0.15}
-        maxZoom={1.5}
+        maxZoom={2}
+        preventScrolling={true}
+        panOnScroll={false}
+        zoomOnScroll={false}
+        panOnDrag={true}
+        zoomOnPinch={true}
+        zoomOnDoubleClick={false}
         className="z-0"
       >
         <Background color="#52525b" gap={24} size={1.5} className="opacity-30" />

@@ -1009,13 +1009,6 @@ export default function AgentsPage() {
           {isLoading ? (
             <div className="flex items-center justify-center h-full"><Loader2 className="h-6 w-6 animate-spin text-zinc-600" /></div>
           ) : (
-            <>
-            {/* Mobile Topology View */}
-            {!isDesktop && (
-              <MobileTopologyView agents={agents} sessionActivity={sessionActivity} onChat={handleNodeClick} />
-            )}
-            {/* Desktop Hierarchy — conditionally rendered to prevent horizontal overflow */}
-            {isDesktop && (
             <div className="flex flex-col h-full" style={{ minWidth: 0 }}>
             <HierarchyView
               agents={agents}
@@ -1033,8 +1026,6 @@ export default function AgentsPage() {
               activeRoundtableAgentId={activeRoundtableAgent}
             />
             </div>
-            )}
-            </>
           )}
         </div>
       </div>
