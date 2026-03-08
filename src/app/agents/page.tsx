@@ -945,7 +945,7 @@ export default function AgentsPage() {
   ];
 
   return (
-    <div className="flex h-full w-full overflow-hidden">
+    <div className="flex h-full w-full overflow-hidden" style={{ maxWidth: "100vw" }}>
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
       {showCreateModal && <CreateAgentModal onClose={() => setShowCreateModal(false)} onToast={showToast} />}
       {deleteAgent && <DeleteConfirmModal agent={deleteAgent} onClose={() => { setDeleteAgent(null); setSelectedAgent(null); }} onToast={showToast} />}
@@ -989,8 +989,8 @@ export default function AgentsPage() {
                 ))}
               </div>
             </div>
-            {/* Desktop Hierarchy */}
-            <div className="hidden md:flex md:flex-col h-full">
+            {/* Desktop Hierarchy — not rendered on mobile to prevent horizontal overflow */}
+            <div className="hidden md:flex md:flex-col h-full" style={{ minWidth: 0 }}>
             <HierarchyView
               agents={agents}
               sessionCounts={{}}
