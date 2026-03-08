@@ -7,6 +7,7 @@ import { SessionWorkspace } from "@/components/sessions/session-workspace";
 import type { TranscriptMessage } from "@/components/sessions/session-workspace";
 import { QueryError } from "@/components/ui/query-error";
 import Link from "next/link";
+import { SessionsSidebar } from "@/components/sessions/sessions-sidebar";
 import { unwrapSessions, unwrapMessages } from "@/lib/gateway/unwrap";
 import {
   useSessionStream,
@@ -72,12 +73,23 @@ export default function SessionWorkspacePage({
   const session = allSessions.find((s) => s.key === sessionKey);
   const messages = unwrapMessages(historyData);
 
+  const wrapWithSidebar = (content: React.ReactNode) => (
+    <div className="flex h-full w-full">
+      <div className="hidden md:flex w-64 flex-col border-r border-zinc-800 overflow-y-auto shrink-0">
+        <SessionsSidebar />
+      </div>
+      <div className="flex-1 min-w-0 overflow-hidden flex flex-col">
+        {content}
+      </div>
+    </div>
+  );
+
   // Session not found — list loaded but key not found, and history also failed
   const listLoaded = !!listData;
   const sessionExists = !!session || (historyData && messages.length > 0);
 
   if (listLoaded && !sessionExists && !historyLoading && !historyData) {
-    return (
+    return wrapWithSidebar(
       <div className="flex min-h-[40vh] items-center justify-center">
         <div className="max-w-sm text-center">
           <h2 className="mb-2 text-lg font-semibold text-zinc-100">
@@ -105,7 +117,7 @@ export default function SessionWorkspacePage({
 
   // Error loading history
   if (historyError && !historyLoading) {
-    return (
+    return wrapWithSidebar(
       <div className="flex h-full flex-col gap-4 p-6">
         <div>
           <h1 className="truncate text-lg font-semibold text-zinc-50">
@@ -121,7 +133,7 @@ export default function SessionWorkspacePage({
     );
   }
 
-  return (
+  return wrapWithSidebar(
     <SessionStreamContext.Provider value={streamCtx}>
       <SessionWorkspace
         session={session ?? { key: sessionKey }}

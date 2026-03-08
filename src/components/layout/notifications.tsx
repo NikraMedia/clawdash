@@ -108,6 +108,11 @@ export function NotificationBell() {
 
   const unreadCount = notifications.filter((n) => !readIds.has(n.id)).length;
 
+  // Feature 3: Tab title with notification badge
+  useEffect(() => {
+    document.title = unreadCount > 0 ? `(${unreadCount}) Claw Dash` : "Claw Dash";
+  }, [unreadCount]);
+
   const markAllRead = useCallback(() => {
     const newIds = new Set(readIds);
     notifications.forEach((n) => newIds.add(n.id));
