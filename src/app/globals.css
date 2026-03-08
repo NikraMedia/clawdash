@@ -144,6 +144,16 @@
     overflow-x: auto;
     max-width: 100%;
   }
+
+  /* Prevent any element from causing horizontal scroll */
+  * {
+    max-width: 100%;
+  }
+
+  /* But allow scrollable containers to be wider */
+  .overflow-x-auto, .overflow-x-scroll {
+    max-width: none;
+  }
 }
 
 @utility bg-glass {

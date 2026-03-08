@@ -217,9 +217,9 @@ export function Transcript({ messages, isLoading, sessionKey }: TranscriptProps)
   }, [dedupedMessages.length, streamState?.streamingContent, isAtBottom]);
 
   return (
-    <div className="relative h-full w-full">
+    <div className="relative h-full w-full overflow-hidden">
       <ScrollArea className="h-full" ref={scrollAreaRef}>
-        <div className="flex flex-col mx-auto max-w-3xl pb-8 pt-24 px-4">
+        <div className="flex flex-col mx-auto max-w-3xl pb-8 pt-24 px-4 w-full overflow-hidden">
           {isLoading && dedupedMessages.length === 0 && (
             <div className="flex flex-col items-center justify-center py-16 gap-3">
               <div className="flex items-center gap-1.5">
