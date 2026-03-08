@@ -30,6 +30,26 @@ function saveReadIds(ids: Set<string>) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify([...ids]));
 }
 
+const AGENT_NAMES: Record<string, string> = {
+  main: "Manager", ceo: "Steve", marketing: "Gary", content: "Jimmy",
+  seo: "Neil", analytics: "Nate", sales: "Alex", finance: "Warren",
+  tax: "Tom", legal: "Robert", "notion-systems": "Tiago", tech: "Pieter",
+};
+
+function formatSessionKey(key: string): string {
+  // "agent:main:main" → "Manager"
+  // "agent:tech:subagent:xxx" → "Pieter (Subagent)"
+  const parts = key.replace(/^telegram:g-/, "").split(":");
+  // parts: ["agent", agentId, type?, ...]
+  const agentId = parts.length > 1 ? parts[1] : parts[0];
+  const type = parts.length > 2 ? parts[2] : undefined;
+  const name = AGENT_NAMES[agentId] ?? agentId;
+  if (type === "cron") return `Cron abgeschlossen (${name})`;
+  if (type === "subagent") return `${name} (Subagent)`;
+  if (type === "rt" || type === "roundtable") return `${name} (Roundtable)`;
+  return name;
+}
+
 export function NotificationBell() {
   const [open, setOpen] = useState(false);
   const [readIds, setReadIds] = useState<Set<string>>(new Set());
@@ -68,13 +88,11 @@ export function NotificationBell() {
     .filter((s) => s.updatedAt && s.updatedAt > Date.now() - 3600_000) // last hour
     .map((s) => {
       const isCron = s.key.includes("cron") || s.origin?.surface === "cron";
-      const agentMatch = s.key.match(/^agent:([^:]+)/);
-      const agentName = s.displayName ?? agentMatch?.[1] ?? "Agent";
       return {
         id: s.key,
         text: isCron
-          ? `Cron: ${s.derivedTitle ?? s.label ?? s.key} abgeschlossen`
-          : `${agentName} hat geantwortet`,
+          ? `Cron: ${s.derivedTitle ?? s.label ?? formatSessionKey(s.key)} abgeschlossen`
+          : `${formatSessionKey(s.key)} hat geantwortet`,
         ts: s.updatedAt ?? 0,
         type: (isCron ? "cron" : "agent") as "cron" | "agent",
       };

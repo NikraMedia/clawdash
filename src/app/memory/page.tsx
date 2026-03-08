@@ -13,6 +13,7 @@ import {
   RefreshCw,
   Loader2,
   X,
+  ArrowLeft,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -33,6 +34,7 @@ const AGENTS = [
 
 export default function MemoryPage() {
   const [selectedAgent, setSelectedAgent] = useState<string>("manager");
+  const [mobileView, setMobileView] = useState<"list" | "detail">("list");
   const [search, setSearch] = useState("");
   const [syncingAll, setSyncingAll] = useState(false);
   const trpc = useTRPC();
@@ -94,9 +96,12 @@ export default function MemoryPage() {
   const selected = AGENTS.find((a) => a.id === selectedAgent) ?? AGENTS[0];
 
   return (
-    <div className="flex h-full w-full overflow-hidden">
+    <div className="flex h-full w-full overflow-hidden flex-col md:flex-row">
       {/* Left sidebar - Agent list */}
-      <div className="w-64 shrink-0 flex flex-col border-r border-zinc-800/80 bg-zinc-950/50">
+      <div className={cn(
+        "w-full md:w-64 md:shrink-0 flex flex-col border-r border-zinc-800/80 bg-zinc-950/50",
+        mobileView === "detail" ? "hidden md:flex" : "flex"
+      )}>
         <div className="px-4 py-4 border-b border-zinc-800/60 shrink-0">
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
@@ -149,6 +154,7 @@ export default function MemoryPage() {
                   onClick={() => {
                     setSelectedAgent(r.id);
                     setSearch("");
+                    setMobileView("detail");
                   }}
                   className="w-full text-left px-3 py-2 rounded-lg hover:bg-zinc-800/60 transition-colors"
                 >
@@ -178,7 +184,7 @@ export default function MemoryPage() {
                 return (
                   <button
                     key={agent.id}
-                    onClick={() => setSelectedAgent(agent.id)}
+                    onClick={() => { setSelectedAgent(agent.id); setMobileView("detail"); }}
                     className={cn(
                       "w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-left transition-all",
                       isActive
@@ -206,9 +212,18 @@ export default function MemoryPage() {
       </div>
 
       {/* Right content - Memory viewer */}
-      <div className="flex-1 flex flex-col min-w-0">
+      <div className={cn(
+        "flex-1 flex flex-col min-w-0",
+        mobileView === "list" ? "hidden md:flex" : "flex"
+      )}>
         <div className="flex items-center justify-between border-b border-zinc-800/60 px-6 py-4 shrink-0">
           <div className="flex items-center gap-3">
+            <button
+              onClick={() => setMobileView("list")}
+              className="md:hidden p-1 -ml-1 text-zinc-400 hover:text-zinc-200"
+            >
+              <ArrowLeft className="h-4 w-4" />
+            </button>
             <span className="text-xl">{selected.emoji}</span>
             <div>
               <h2 className="text-sm font-semibold text-zinc-100">

@@ -764,6 +764,38 @@ function DeleteConfirmModal({ agent, onClose, onToast }: { agent: AgentData; onC
   );
 }
 
+/* ─── Mobile Agent Card ─── */
+function MobileAgentCard({ agent, sessionActivity, onChat }: {
+  agent: AgentData;
+  sessionActivity: Record<string, number>;
+  onChat: (id: string) => void;
+}) {
+  const meta = AGENT_META[agent.id] ?? { role: "Agent", color: "zinc" };
+  const lastActive = sessionActivity[agent.id];
+  const isOnline = lastActive && Date.now() - lastActive < 300_000; // 5min
+  return (
+    <button
+      onClick={() => onChat(agent.id)}
+      className="flex flex-col items-center gap-2 rounded-xl border border-zinc-800/60 bg-zinc-900/60 p-4 hover:border-zinc-700 transition-colors text-center"
+    >
+      <div className="relative">
+        <span className="text-2xl">{agent.emoji || "\uD83E\uDD16"}</span>
+        <span className={cn(
+          "absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-zinc-900",
+          isOnline ? "bg-emerald-500" : "bg-zinc-600"
+        )} />
+      </div>
+      <div>
+        <p className="text-sm font-medium text-zinc-200">{agent.name ?? agent.id}</p>
+        <p className="text-[10px] text-zinc-500">{meta.role}</p>
+      </div>
+      <span className="text-[10px] text-indigo-400 flex items-center gap-1">
+        <Bot className="h-3 w-3" /> Chat
+      </span>
+    </button>
+  );
+}
+
 /* ─── Main Page ─── */
 export default function AgentsPage() {
   const [selectedAgent, setSelectedAgent] = useState<AgentData | null>(null);
@@ -916,6 +948,17 @@ export default function AgentsPage() {
           {isLoading ? (
             <div className="flex items-center justify-center h-full"><Loader2 className="h-6 w-6 animate-spin text-zinc-600" /></div>
           ) : (
+            <>
+            {/* Mobile Card Grid */}
+            <div className="block md:hidden p-4">
+              <div className="grid grid-cols-2 gap-3">
+                {agents.map((a) => (
+                  <MobileAgentCard key={a.id} agent={a} sessionActivity={sessionActivity} onChat={handleNodeClick} />
+                ))}
+              </div>
+            </div>
+            {/* Desktop Hierarchy */}
+            <div className="hidden md:block h-full">
             <HierarchyView
               agents={agents}
               sessionCounts={{}}
@@ -931,6 +974,8 @@ export default function AgentsPage() {
               selectedAgentId={selectedAgent?.id ?? null}
               activeRoundtableAgentId={activeRoundtableAgent}
             />
+            </div>
+            </>
           )}
         </div>
       </div>

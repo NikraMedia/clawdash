@@ -223,12 +223,12 @@ export default function SystemPage() {
 
         <div className="animate-in fade-in slide-in-from-bottom-4 duration-700 delay-150 fill-mode-both">
           <Tabs defaultValue="config">
-            <TabsList className="bg-zinc-900 border border-zinc-800 h-auto overflow-x-auto whitespace-nowrap flex-nowrap w-full justify-start">
+            <TabsList className="bg-zinc-900 border border-zinc-800 h-auto overflow-x-auto whitespace-nowrap flex-nowrap w-full justify-start scrollbar-none [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
               {tabs.map((tab) => (
                 <TabsTrigger
                   key={tab.value}
                   value={tab.value}
-                  className="data-[state=active]:bg-zinc-800 data-[state=active]:text-zinc-50 data-[state=inactive]:text-zinc-500 px-3 py-2"
+                  className="data-[state=active]:bg-zinc-800 data-[state=active]:text-zinc-50 data-[state=inactive]:text-zinc-500 px-3 py-2 shrink-0"
                 >
                   <tab.icon className="h-3.5 w-3.5" />
                   <span>{tab.label}</span>
