@@ -1,6 +1,8 @@
 "use client";
 
-import { useState, useMemo, useCallback, useEffect } from "react";
+import { useMemo, useCallback } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useTRPC } from "@/lib/trpc/react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
@@ -15,116 +17,60 @@ import {
   Loader2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useState } from "react";
 
-/* ─── Types ─── */
 interface PermissionRequest {
   id: string;
   agentId: string;
   agentName: string;
-  action: "delete" | "external_send" | "file_edit" | "install" | "config_change";
+  action: string;
   description: string;
   target?: string;
   status: "pending" | "approved" | "rejected";
-  createdAt: number;
-  resolvedAt?: number;
+  createdAt: string;
+  resolvedAt: string | null;
 }
 
 const ACTION_META: Record<string, { label: string; icon: typeof Trash2; color: string }> = {
-  delete: { label: "Löschen", icon: Trash2, color: "red" },
+  delete: { label: "Loeschen", icon: Trash2, color: "red" },
+  delete_file: { label: "Datei loeschen", icon: Trash2, color: "red" },
   external_send: { label: "Extern senden", icon: Send, color: "amber" },
-  file_edit: { label: "Datei ändern", icon: FileEdit, color: "blue" },
+  file_edit: { label: "Datei aendern", icon: FileEdit, color: "blue" },
   install: { label: "Installieren", icon: AlertTriangle, color: "orange" },
-  config_change: { label: "Config ändern", icon: AlertTriangle, color: "purple" },
+  config_change: { label: "Config aendern", icon: AlertTriangle, color: "purple" },
 };
-
-const STORAGE_KEY = "clawdash-permission-requests";
-
-// Mock data for initial state
-const MOCK_REQUESTS: PermissionRequest[] = [
-  {
-    id: "req-1",
-    agentId: "pieter",
-    agentName: "Pieter",
-    action: "delete",
-    description: "Alte Log-Dateien löschen (>30 Tage)",
-    target: "C:\\Users\\Nikra\\.openclaw\\logs\\*.old",
-    status: "pending",
-    createdAt: Date.now() - 3600000,
-  },
-  {
-    id: "req-2",
-    agentId: "gary",
-    agentName: "Gary",
-    action: "external_send",
-    description: "Newsletter an 150 Subscriber senden",
-    target: "marketing@nikramedia.de",
-    status: "pending",
-    createdAt: Date.now() - 7200000,
-  },
-  {
-    id: "req-3",
-    agentId: "warren",
-    agentName: "Warren",
-    action: "config_change",
-    description: "Budget-Limit von 500€ auf 1000€ erhöhen",
-    status: "pending",
-    createdAt: Date.now() - 1800000,
-  },
-  {
-    id: "req-4",
-    agentId: "tiago",
-    agentName: "Tiago",
-    action: "delete",
-    description: "Verwaiste Notion-Seiten archivieren (12 Seiten)",
-    status: "approved",
-    createdAt: Date.now() - 86400000,
-    resolvedAt: Date.now() - 82800000,
-  },
-  {
-    id: "req-5",
-    agentId: "neil",
-    agentName: "Neil",
-    action: "external_send",
-    description: "Backlink-Outreach E-Mails senden (50 Empfänger)",
-    status: "rejected",
-    createdAt: Date.now() - 172800000,
-    resolvedAt: Date.now() - 170000000,
-  },
-];
-
-function loadRequests(): PermissionRequest[] {
-  if (typeof window === "undefined") return MOCK_REQUESTS;
-  try {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored) return JSON.parse(stored);
-  } catch { /* ignore */ }
-  // First load: seed with mock data
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(MOCK_REQUESTS));
-  return MOCK_REQUESTS;
-}
-
-function saveRequests(requests: PermissionRequest[]) {
-  if (typeof window === "undefined") return;
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(requests));
-}
 
 type FilterStatus = "all" | "pending" | "approved" | "rejected";
 
 export default function PermissionsPage() {
-  const [requests, setRequests] = useState<PermissionRequest[]>([]);
   const [filter, setFilter] = useState<FilterStatus>("all");
-  const [loaded, setLoaded] = useState(false);
+  const trpc = useTRPC();
+  const queryClient = useQueryClient();
 
-  // Load from localStorage on mount
-  useEffect(() => {
-    setRequests(loadRequests());
-    setLoaded(true);
-  }, []);
+  const { data, isLoading } = useQuery({
+    ...trpc.permissions.getRequests.queryOptions(),
+    refetchInterval: 10_000,
+  });
 
-  // Save on change
-  useEffect(() => {
-    if (loaded) saveRequests(requests);
-  }, [requests, loaded]);
+  const approveMutation = useMutation(
+    trpc.permissions.approveRequest.mutationOptions({
+      onSuccess: () => queryClient.invalidateQueries({ queryKey: trpc.permissions.getRequests.queryKey() }),
+    })
+  );
+
+  const rejectMutation = useMutation(
+    trpc.permissions.rejectRequest.mutationOptions({
+      onSuccess: () => queryClient.invalidateQueries({ queryKey: trpc.permissions.getRequests.queryKey() }),
+    })
+  );
+
+  const clearMutation = useMutation(
+    trpc.permissions.clearResolved.mutationOptions({
+      onSuccess: () => queryClient.invalidateQueries({ queryKey: trpc.permissions.getRequests.queryKey() }),
+    })
+  );
+
+  const requests: PermissionRequest[] = data?.requests ?? [];
 
   const filtered = useMemo(() => {
     if (filter === "all") return requests;
@@ -134,24 +80,12 @@ export default function PermissionsPage() {
   const pendingCount = requests.filter((r) => r.status === "pending").length;
 
   const handleApprove = useCallback((id: string) => {
-    setRequests((prev) =>
-      prev.map((r) =>
-        r.id === id ? { ...r, status: "approved" as const, resolvedAt: Date.now() } : r
-      )
-    );
-  }, []);
+    approveMutation.mutate({ id });
+  }, [approveMutation]);
 
   const handleReject = useCallback((id: string) => {
-    setRequests((prev) =>
-      prev.map((r) =>
-        r.id === id ? { ...r, status: "rejected" as const, resolvedAt: Date.now() } : r
-      )
-    );
-  }, []);
-
-  const handleClearResolved = useCallback(() => {
-    setRequests((prev) => prev.filter((r) => r.status === "pending"));
-  }, []);
+    rejectMutation.mutate({ id });
+  }, [rejectMutation]);
 
   const filters: { id: FilterStatus; label: string }[] = [
     { id: "all", label: "Alle" },
@@ -160,7 +94,7 @@ export default function PermissionsPage() {
     { id: "rejected", label: "Abgelehnt" },
   ];
 
-  if (!loaded) {
+  if (isLoading) {
     return (
       <div className="flex items-center justify-center h-full">
         <Loader2 className="h-6 w-6 animate-spin text-zinc-600" />
@@ -170,29 +104,27 @@ export default function PermissionsPage() {
 
   return (
     <div className="flex h-full w-full flex-col overflow-hidden">
-      {/* Header */}
       <div className="flex items-center justify-between border-b border-zinc-800/60 px-6 py-4 shrink-0">
         <div className="flex items-center gap-3">
           <Shield className="h-5 w-5 text-amber-400" />
           <div>
             <h1 className="text-lg font-semibold text-zinc-100">Berechtigungen</h1>
             <p className="text-[11px] text-zinc-500 mt-0.5">
-              {pendingCount} offene Requests · Manager-Genehmigung erforderlich
+              {pendingCount} offene Requests - Manager-Genehmigung erforderlich
             </p>
           </div>
         </div>
         <Button
-          onClick={handleClearResolved}
+          onClick={() => clearMutation.mutate()}
           variant="ghost"
           size="sm"
           className="h-8 text-[11px] text-zinc-400 hover:text-zinc-200"
         >
           <Trash2 className="h-3.5 w-3.5 mr-1.5" />
-          Erledigte löschen
+          Erledigte loeschen
         </Button>
       </div>
 
-      {/* Filter tabs */}
       <div className="flex items-center gap-1 border-b border-zinc-800/40 px-6 py-2 shrink-0">
         {filters.map((f) => (
           <button
@@ -210,7 +142,6 @@ export default function PermissionsPage() {
         ))}
       </div>
 
-      {/* Request list */}
       <ScrollArea className="flex-1 min-h-0">
         <div className="p-6 space-y-3">
           {filtered.length === 0 ? (
@@ -237,7 +168,6 @@ export default function PermissionsPage() {
                       : "bg-zinc-900/40 border-zinc-800/40 opacity-70"
                   )}
                 >
-                  {/* Icon */}
                   <div
                     className={cn(
                       "flex items-center justify-center h-10 w-10 rounded-lg shrink-0",
@@ -251,12 +181,9 @@ export default function PermissionsPage() {
                     <Icon className="h-5 w-5" />
                   </div>
 
-                  {/* Content */}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
-                      <span className="text-sm font-medium text-zinc-200">
-                        {req.agentName}
-                      </span>
+                      <span className="text-sm font-medium text-zinc-200">{req.agentName}</span>
                       <span
                         className={cn(
                           "text-[9px] px-1.5 py-0.5 rounded font-medium",
@@ -284,23 +211,20 @@ export default function PermissionsPage() {
                     </div>
                     <p className="text-[12px] text-zinc-300">{req.description}</p>
                     {req.target && (
-                      <p className="text-[10px] text-zinc-500 font-mono mt-1">
-                        {req.target}
-                      </p>
+                      <p className="text-[10px] text-zinc-500 font-mono mt-1">{req.target}</p>
                     )}
                     <p className="text-[10px] text-zinc-600 mt-1.5">
                       <Clock className="inline h-3 w-3 mr-1" />
                       {new Date(req.createdAt).toLocaleString("de-DE")}
                       {req.resolvedAt && (
                         <span>
-                          {" · Bearbeitet: "}
+                          {" - Bearbeitet: "}
                           {new Date(req.resolvedAt).toLocaleString("de-DE")}
                         </span>
                       )}
                     </p>
                   </div>
 
-                  {/* Actions */}
                   {req.status === "pending" && (
                     <div className="flex items-center gap-2 shrink-0">
                       <Button

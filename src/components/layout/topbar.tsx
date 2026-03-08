@@ -27,6 +27,7 @@ const statusConfig: Record<
 };
 
 import { MobileSidebar } from "@/components/layout/sidebar";
+import { NotificationBell } from "@/components/layout/notifications";
 
 export function Topbar() {
   const { health, isOffline } = useGatewayHealth();
@@ -56,6 +57,8 @@ export function Topbar() {
           <kbd className="font-sans text-[10px] font-medium tracking-widest text-zinc-300 bg-zinc-800 px-1.5 py-0.5 rounded opacity-80">⌘K</kbd>
           <span>Search</span>
         </div>
+
+        <NotificationBell />
 
         <div className="flex items-center gap-2">
           <span className="relative flex h-2.5 w-2.5">

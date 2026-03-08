@@ -19,6 +19,7 @@ import {
   X,
   Brain,
   Shield,
+  DollarSign,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -35,6 +36,7 @@ const navItems = [
   { href: "/agents", label: "Agents", icon: Bot },
   { href: "/memory", label: "Memory", icon: Brain },
   { href: "/permissions", label: "Permissions", icon: Shield },
+  { href: "/costs", label: "Costs", icon: DollarSign },
   { href: "/cron", label: "Cron", icon: Clock },
   { href: "/activity", label: "Activity", icon: Activity },
   { href: "/system", label: "System", icon: Settings },

@@ -123,23 +123,39 @@ export function CommandPalette() {
         <CommandGroup heading="Navigation">
           <CommandItem onSelect={() => navigate("/")}>
             <Home className="mr-2 h-4 w-4 shrink-0 text-zinc-400" />
-            Home
+            Go to Home
+          </CommandItem>
+          <CommandItem onSelect={() => navigate("/agents")}>
+            <Home className="mr-2 h-4 w-4 shrink-0 text-zinc-400" />
+            Go to Agents
           </CommandItem>
           <CommandItem onSelect={() => navigate("/sessions")}>
             <MessageSquare className="mr-2 h-4 w-4 shrink-0 text-zinc-400" />
-            Sessions
+            Go to Sessions
+          </CommandItem>
+          <CommandItem onSelect={() => navigate("/memory")}>
+            <Home className="mr-2 h-4 w-4 shrink-0 text-zinc-400" />
+            Go to Memory
+          </CommandItem>
+          <CommandItem onSelect={() => navigate("/permissions")}>
+            <Home className="mr-2 h-4 w-4 shrink-0 text-zinc-400" />
+            Go to Permissions
+          </CommandItem>
+          <CommandItem onSelect={() => navigate("/costs")}>
+            <Home className="mr-2 h-4 w-4 shrink-0 text-zinc-400" />
+            Go to Costs
           </CommandItem>
           <CommandItem onSelect={() => navigate("/cron")}>
             <Clock className="mr-2 h-4 w-4 shrink-0 text-zinc-400" />
-            Cron
+            Go to Cron
           </CommandItem>
           <CommandItem onSelect={() => navigate("/activity")}>
             <Activity className="mr-2 h-4 w-4 shrink-0 text-zinc-400" />
-            Activity
+            Go to Activity
           </CommandItem>
           <CommandItem onSelect={() => navigate("/system")}>
             <Settings className="mr-2 h-4 w-4 shrink-0 text-zinc-400" />
-            System
+            Go to System
           </CommandItem>
         </CommandGroup>
 
@@ -173,7 +189,34 @@ export function CommandPalette() {
         {agents.length > 0 && (
           <>
             <CommandSeparator />
+            <CommandGroup heading="Chat with Agent">
+              {agents.map((a) => (
+                <CommandItem
+                  key={`chat-${a.id}`}
+                  onSelect={() => navigate(`/sessions?agent=${a.id}`)}
+                >
+                  <MessageSquare className="mr-2 h-4 w-4 shrink-0 text-indigo-400" />
+                  Chat with {a.name ?? a.id}
+                </CommandItem>
+              ))}
+            </CommandGroup>
+            <CommandSeparator />
+            <CommandGroup heading="View Memory">
+              {agents.map((a) => (
+                <CommandItem
+                  key={`mem-${a.id}`}
+                  onSelect={() => navigate(`/memory?agent=${a.id}`)}
+                >
+                  {a.emoji ? `${a.emoji} ` : ""}
+                  View Memory: {a.name ?? a.id}
+                </CommandItem>
+              ))}
+            </CommandGroup>
+            <CommandSeparator />
             <CommandGroup heading="Agents">
+              <CommandItem onSelect={() => navigate("/agents")}>
+                Open Roundtable
+              </CommandItem>
               {agents.map((a) => (
                 <CommandItem
                   key={a.id}
