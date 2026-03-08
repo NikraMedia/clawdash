@@ -6,6 +6,7 @@ import { useTRPC } from "@/lib/trpc/react";
 import { unwrapSessions } from "@/lib/gateway/unwrap";
 import { Bell } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useRouter } from "next/navigation";
 
 const STORAGE_KEY = "clawdash-read-sessions";
 const POLL_INTERVAL = 30_000;
@@ -15,6 +16,7 @@ interface Notification {
   text: string;
   ts: number;
   type: "agent" | "cron";
+  href: string;
 }
 
 function getReadIds(): Set<string> {
@@ -55,6 +57,7 @@ export function NotificationBell() {
   const [readIds, setReadIds] = useState<Set<string>>(new Set());
   const dropdownRef = useRef<HTMLDivElement>(null);
   const trpc = useTRPC();
+  const router = useRouter();
 
   useEffect(() => {
     setReadIds(getReadIds());
@@ -88,6 +91,7 @@ export function NotificationBell() {
     .filter((s) => s.updatedAt && s.updatedAt > Date.now() - 3600_000) // last hour
     .map((s) => {
       const isCron = s.key.includes("cron") || s.origin?.surface === "cron";
+      const href = isCron ? "/cron" : `/sessions?key=${encodeURIComponent(s.key)}`;
       return {
         id: s.key,
         text: isCron
@@ -95,6 +99,7 @@ export function NotificationBell() {
           : `${formatSessionKey(s.key)} hat geantwortet`,
         ts: s.updatedAt ?? 0,
         type: (isCron ? "cron" : "agent") as "cron" | "agent",
+        href,
       };
     })
     .sort((a, b) => b.ts - a.ts)
@@ -146,10 +151,18 @@ export function NotificationBell() {
               </div>
             ) : (
               notifications.map((n) => (
-                <div
+                <button
                   key={n.id}
+                  onClick={() => {
+                    const newIds = new Set(readIds);
+                    newIds.add(n.id);
+                    setReadIds(newIds);
+                    saveReadIds(newIds);
+                    setOpen(false);
+                    router.push(n.href);
+                  }}
                   className={cn(
-                    "px-4 py-2.5 border-b border-zinc-800/30 text-[12px] transition-colors",
+                    "w-full text-left px-4 py-2.5 border-b border-zinc-800/30 text-[12px] transition-colors hover:bg-zinc-800/50 active:bg-zinc-700/50",
                     readIds.has(n.id) ? "text-zinc-500" : "text-zinc-300 bg-zinc-900/50"
                   )}
                 >
@@ -162,7 +175,7 @@ export function NotificationBell() {
                   <p className="text-[10px] text-zinc-600 mt-0.5">
                     {new Date(n.ts).toLocaleString("de-DE")}
                   </p>
-                </div>
+                </button>
               ))
             )}
           </div>
