@@ -175,7 +175,7 @@ export default function NewSessionPage() {
         <div className="w-full rounded-2xl border border-zinc-800/80 bg-zinc-900/30 p-5 shadow-lg">
 
           {/* Configuration Grid */}
-          <div className="mb-4 grid grid-cols-2 gap-3">
+          <div className="mb-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="flex flex-col gap-1 text-left">
               <label className="text-[11px] font-medium text-zinc-500 px-0.5">Agent</label>
               <div className="relative">

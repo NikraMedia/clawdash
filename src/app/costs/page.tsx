@@ -35,7 +35,7 @@ export default function CostsPage() {
   return (
     <div className="flex h-full w-full flex-col overflow-hidden">
       {/* Header */}
-      <div className="flex items-center justify-between border-b border-zinc-800/60 px-6 py-4 shrink-0">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-zinc-800/60 px-4 sm:px-6 py-4 shrink-0">
         <div className="flex items-center gap-3">
           <DollarSign className="h-5 w-5 text-emerald-400" />
           <div>
@@ -78,7 +78,7 @@ export default function CostsPage() {
           </div>
 
           {/* Agent table */}
-          <div className="rounded-xl border border-zinc-800/60 overflow-hidden">
+          <div className="rounded-xl border border-zinc-800/60 overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-zinc-800/60 text-[11px] text-zinc-500 uppercase tracking-wider">

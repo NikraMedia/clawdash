@@ -57,11 +57,11 @@ export function SessionWorkspace({
   const title = getSessionTitle(session);
 
   return (
-    <div className="flex flex-1 min-h-0 min-w-0 h-full w-full gap-0 overflow-hidden bg-zinc-950">
+    <div className="flex flex-col md:flex-row flex-1 min-h-0 min-w-0 h-full w-full gap-0 overflow-hidden bg-zinc-950">
       {/* Transcript — left side */}
-      <div className="flex flex-1 min-w-0 min-h-0 flex-col border-r border-zinc-800 transition-all duration-300">
+      <div className="flex flex-1 min-w-0 min-h-0 flex-col md:border-r border-zinc-800 transition-all duration-300">
         {/* Session Header */}
-        <div className="flex h-14 shrink-0 items-center justify-between border-b border-zinc-800/80 bg-zinc-950 px-5">
+        <div className="flex h-14 shrink-0 items-center justify-between border-b border-zinc-800/80 bg-zinc-950 px-3 sm:px-5">
           <div className="flex items-center gap-3 min-w-0">
             <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-indigo-950/50 text-indigo-400 ring-1 ring-indigo-900/50">
               <Cpu className="h-3.5 w-3.5" />
@@ -138,7 +138,7 @@ export function SessionWorkspace({
       {/* Context panel — right side */}
       <div
         className={cn(
-          "shrink-0 flex flex-col min-h-0 bg-zinc-900/30 transition-all duration-300 ease-in-out border-l border-zinc-800/0",
+          "shrink-0 flex-col min-h-0 bg-zinc-900/30 transition-all duration-300 ease-in-out border-l border-zinc-800/0 hidden md:flex",
           isContextVisible ? "w-80 opacity-100" : "w-0 opacity-0 overflow-hidden border-none"
         )}
       >

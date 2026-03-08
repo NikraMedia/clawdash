@@ -236,8 +236,8 @@ export function Composer({ sessionKey }: { sessionKey: string }) {
                     )}
 
                     {/* Action Bar */}
-                    <div className="flex items-center justify-between border-t border-zinc-800/50 bg-zinc-900/30 px-3 py-1.5 rounded-b-2xl">
-                        <div className="flex items-center gap-1.5">
+                    <div className="flex items-center justify-between border-t border-zinc-800/50 bg-zinc-900/30 px-3 py-1.5 rounded-b-2xl gap-2">
+                        <div className="flex items-center gap-1.5 min-w-0 overflow-x-auto">
                             <button
                                 onClick={() => fileInputRef.current?.click()}
                                 className="flex h-7 items-center justify-center rounded-md px-2 text-zinc-500 hover:bg-zinc-800 hover:text-zinc-300 transition-colors"
@@ -248,10 +248,10 @@ export function Composer({ sessionKey }: { sessionKey: string }) {
                                 <Paperclip className="h-3.5 w-3.5" />
                             </button>
 
-                            <div className="h-3.5 w-px bg-zinc-800/60 mx-0.5" />
+                            <div className="h-3.5 w-px bg-zinc-800/60 mx-0.5 hidden sm:block" />
 
                             {/* Model selector */}
-                            <div className="relative">
+                            <div className="relative hidden sm:block">
                                 <select
                                     value={model}
                                     onChange={(e) => setModel(e.target.value)}
@@ -270,10 +270,10 @@ export function Composer({ sessionKey }: { sessionKey: string }) {
                                 <ChevronDown className="absolute right-1 top-1/2 -translate-y-1/2 h-2.5 w-2.5 text-zinc-600 pointer-events-none" />
                             </div>
 
-                            <div className="h-3.5 w-px bg-zinc-800/60 mx-0.5" />
+                            <div className="h-3.5 w-px bg-zinc-800/60 mx-0.5 hidden sm:block" />
 
                             {/* Thinking Level */}
-                            <div className="flex bg-zinc-900/50 p-0.5 rounded-md border border-zinc-800/60">
+                            <div className="hidden sm:flex bg-zinc-900/50 p-0.5 rounded-md border border-zinc-800/60">
                                 {(["", "low", "medium", "high"] as const).map((level) => (
                                     <button
                                         key={level}

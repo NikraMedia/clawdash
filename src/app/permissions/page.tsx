@@ -104,7 +104,7 @@ export default function PermissionsPage() {
 
   return (
     <div className="flex h-full w-full flex-col overflow-hidden">
-      <div className="flex items-center justify-between border-b border-zinc-800/60 px-6 py-4 shrink-0">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-zinc-800/60 px-4 sm:px-6 py-4 shrink-0">
         <div className="flex items-center gap-3">
           <Shield className="h-5 w-5 text-amber-400" />
           <div>
@@ -125,7 +125,7 @@ export default function PermissionsPage() {
         </Button>
       </div>
 
-      <div className="flex items-center gap-1 border-b border-zinc-800/40 px-6 py-2 shrink-0">
+      <div className="flex items-center gap-1 border-b border-zinc-800/40 px-4 sm:px-6 py-2 shrink-0 overflow-x-auto">
         {filters.map((f) => (
           <button
             key={f.id}
@@ -143,7 +143,7 @@ export default function PermissionsPage() {
       </div>
 
       <ScrollArea className="flex-1 min-h-0">
-        <div className="p-6 space-y-3">
+        <div className="p-4 sm:p-6 space-y-3">
           {filtered.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-20 text-center">
               <Shield className="h-12 w-12 text-zinc-700 mb-4" />
@@ -162,7 +162,7 @@ export default function PermissionsPage() {
                 <div
                   key={req.id}
                   className={cn(
-                    "flex items-start gap-4 p-4 rounded-xl border transition-colors",
+                    "flex flex-col sm:flex-row sm:items-start gap-3 sm:gap-4 p-4 rounded-xl border transition-colors",
                     req.status === "pending"
                       ? "bg-zinc-900/80 border-zinc-700/60"
                       : "bg-zinc-900/40 border-zinc-800/40 opacity-70"
@@ -226,7 +226,7 @@ export default function PermissionsPage() {
                   </div>
 
                   {req.status === "pending" && (
-                    <div className="flex items-center gap-2 shrink-0">
+                    <div className="flex items-center gap-2 shrink-0 mt-2 sm:mt-0">
                       <Button
                         onClick={() => handleApprove(req.id)}
                         size="sm"
