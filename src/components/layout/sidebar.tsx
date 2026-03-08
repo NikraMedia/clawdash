@@ -16,7 +16,9 @@ import {
   MessageSquare,
   Bot,
   Menu,
-  X
+  X,
+  Brain,
+  Shield,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -31,6 +33,8 @@ import {
 const navItems = [
   { href: "/", label: "Home", icon: Home },
   { href: "/agents", label: "Agents", icon: Bot },
+  { href: "/memory", label: "Memory", icon: Brain },
+  { href: "/permissions", label: "Permissions", icon: Shield },
   { href: "/cron", label: "Cron", icon: Clock },
   { href: "/activity", label: "Activity", icon: Activity },
   { href: "/system", label: "System", icon: Settings },

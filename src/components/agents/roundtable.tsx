@@ -58,27 +58,22 @@ async function pollForResponse(sessionKey: string, maxWaitMs = 90000): Promise<s
   while (Date.now() - start < maxWaitMs) {
     await new Promise((r) => setTimeout(r, interval));
     try {
+      // tRPC v11: input is plain JSON, no { json: ... } wrapper
       const url = `/api/trpc/sessions.history?input=${encodeURIComponent(
-        JSON.stringify({ json: { sessionKey, limit: 20 } })
+        JSON.stringify({ sessionKey, limit: 20 })
       )}`;
       const res = await fetch(url);
       if (!res.ok) continue;
       const data = await res.json();
 
-      // tRPC v11 response unwrap
-      const raw =
-        data?.result?.data?.json ??
-        data?.result?.data ??
-        data?.result ??
-        data;
+      // tRPC v11 response: { result: { data: { messages: [...] } } }
+      const raw = data?.result?.data ?? data?.result ?? data;
 
       const messages: Array<{ role: string; content?: unknown; text?: string }> =
-        Array.isArray(raw)
-          ? raw
-          : Array.isArray(raw?.messages)
+        Array.isArray(raw?.messages)
           ? raw.messages
-          : Array.isArray(raw?.json)
-          ? raw.json
+          : Array.isArray(raw)
+          ? raw
           : [];
 
       const assistantMsgs = messages.filter((m) => m.role === "assistant");
