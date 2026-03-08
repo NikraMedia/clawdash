@@ -30,6 +30,7 @@ import { cn } from "@/lib/utils";
 import { HierarchyView } from "@/components/agents/hierarchy-view";
 import { RoundtableModal } from "@/components/agents/roundtable";
 import { Users } from "lucide-react";
+import { useMediaQuery } from "@/hooks/use-media-query";
 
 /* ─── Types ─── */
 const AGENT_META: Record<string, { role: string; color: string }> = {
@@ -794,37 +795,64 @@ function DeleteConfirmModal({ agent, onClose, onToast }: { agent: AgentData; onC
   );
 }
 
-/* ─── Mobile Agent Card ─── */
-function MobileAgentCard({ agent, sessionActivity, onChat }: {
-  agent: AgentData;
+/* ─── Mobile Topology View ─── */
+function MobileTopologyView({ agents, sessionActivity, onChat }: {
+  agents: AgentData[];
   sessionActivity: Record<string, number>;
   onChat: (id: string) => void;
 }) {
-  const meta = AGENT_META[agent.id] ?? { role: "Agent", color: "zinc" };
-  const lastActive = sessionActivity[agent.id];
-  const isOnline = lastActive && Date.now() - lastActive < 300_000; // 5min
-  const displayName = AGENT_DISPLAY_NAMES[agent.id] ?? agent.name ?? agent.id;
-  const emoji = AGENT_EMOJIS[agent.id] ?? agent.emoji ?? "🤖";
+  const SUB_AGENT_ORDER = ["ceo","marketing","content","seo","analytics","sales","finance","tax","legal","notion-systems","tech"];
+
+  function AgentRow({ agentId }: { agentId: string }) {
+    const meta = AGENT_META[agentId] ?? { role: "Agent", color: "zinc" };
+    const displayName = AGENT_DISPLAY_NAMES[agentId] ?? agentId;
+    const emoji = AGENT_EMOJIS[agentId] ?? "🤖";
+    const lastActive = sessionActivity[agentId];
+    const isOnline = lastActive && Date.now() - lastActive < 300_000;
+    return (
+      <button
+        onClick={() => onChat(agentId)}
+        className="flex items-center gap-3 w-full p-2.5 rounded-xl bg-zinc-800/40 border border-zinc-700/30 hover:border-zinc-600/50 transition-colors text-left"
+      >
+        <div className="relative shrink-0">
+          <span className="text-lg">{emoji}</span>
+          <span className={cn(
+            "absolute -bottom-0.5 -right-0.5 h-2 w-2 rounded-full border-[1.5px] border-zinc-900",
+            isOnline ? "bg-emerald-500" : "bg-zinc-600"
+          )} />
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-medium text-zinc-200 truncate">{displayName}</p>
+          <p className="text-[10px] text-zinc-500">{meta.role}</p>
+        </div>
+        <Bot className="h-3.5 w-3.5 text-indigo-400 shrink-0" />
+      </button>
+    );
+  }
+
   return (
-    <button
-      onClick={() => onChat(agent.id)}
-      className="flex flex-col items-center gap-2 rounded-xl border border-zinc-800/60 bg-zinc-900/60 p-4 hover:border-zinc-700 transition-colors text-center"
-    >
-      <div className="relative">
-        <span className="text-2xl">{emoji}</span>
-        <span className={cn(
-          "absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-zinc-900",
-          isOnline ? "bg-emerald-500" : "bg-zinc-600"
-        )} />
+    <div className="p-4 overflow-y-auto h-full">
+      {/* Chef Node */}
+      <div className="flex items-center gap-3 p-3 rounded-xl bg-zinc-800/50 border border-zinc-700/50 mb-2">
+        <span className="text-2xl">👑</span>
+        <div>
+          <p className="text-sm font-semibold text-zinc-100">Niko</p>
+          <p className="text-[10px] text-zinc-500">Chef / Owner</p>
+        </div>
       </div>
-      <div>
-        <p className="text-sm font-medium text-zinc-200">{displayName}</p>
-        <p className="text-[10px] text-zinc-500">{meta.role}</p>
+
+      {/* Manager branch */}
+      <div className="ml-4 border-l-2 border-zinc-700/50 pl-4 space-y-2">
+        <AgentRow agentId="main" />
+
+        {/* Sub-agents */}
+        <div className="ml-4 border-l-2 border-zinc-700/30 pl-4 space-y-1.5">
+          {SUB_AGENT_ORDER.map(id => (
+            <AgentRow key={id} agentId={id} />
+          ))}
+        </div>
       </div>
-      <span className="text-[10px] text-indigo-400 flex items-center gap-1">
-        <Bot className="h-3 w-3" /> Chat
-      </span>
-    </button>
+    </div>
   );
 }
 
@@ -837,6 +865,7 @@ export default function AgentsPage() {
   const [deleteAgent, setDeleteAgent] = useState<AgentData | null>(null);
   const [showRoundtable, setShowRoundtable] = useState(false);
   const [activeRoundtableAgent, setActiveRoundtableAgent] = useState<string | null>(null);
+  const isDesktop = useMediaQuery("(min-width: 768px)");
 
   const trpc = useTRPC();
   const queryClient = useQueryClient();
@@ -981,16 +1010,13 @@ export default function AgentsPage() {
             <div className="flex items-center justify-center h-full"><Loader2 className="h-6 w-6 animate-spin text-zinc-600" /></div>
           ) : (
             <>
-            {/* Mobile Card Grid */}
-            <div className="block md:hidden p-4">
-              <div className="grid grid-cols-2 gap-3">
-                {agents.map((a) => (
-                  <MobileAgentCard key={a.id} agent={a} sessionActivity={sessionActivity} onChat={handleNodeClick} />
-                ))}
-              </div>
-            </div>
-            {/* Desktop Hierarchy — not rendered on mobile to prevent horizontal overflow */}
-            <div className="hidden md:flex md:flex-col h-full" style={{ minWidth: 0 }}>
+            {/* Mobile Topology View */}
+            {!isDesktop && (
+              <MobileTopologyView agents={agents} sessionActivity={sessionActivity} onChat={handleNodeClick} />
+            )}
+            {/* Desktop Hierarchy — conditionally rendered to prevent horizontal overflow */}
+            {isDesktop && (
+            <div className="flex flex-col h-full" style={{ minWidth: 0 }}>
             <HierarchyView
               agents={agents}
               sessionCounts={{}}
@@ -1007,6 +1033,7 @@ export default function AgentsPage() {
               activeRoundtableAgentId={activeRoundtableAgent}
             />
             </div>
+            )}
             </>
           )}
         </div>
