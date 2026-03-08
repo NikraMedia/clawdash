@@ -91,7 +91,8 @@ export function NotificationBell() {
     .filter((s) => s.updatedAt && s.updatedAt > Date.now() - 3600_000) // last hour
     .map((s) => {
       const isCron = s.key.includes("cron") || s.origin?.surface === "cron";
-      const href = isCron ? "/cron" : `/sessions?key=${encodeURIComponent(s.key)}`;
+      const encodedKey = encodeURIComponent(s.key);
+      const href = isCron ? "/cron" : `/sessions/${encodedKey}`;
       return {
         id: s.key,
         text: isCron

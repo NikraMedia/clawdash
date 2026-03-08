@@ -312,11 +312,11 @@ export default function NewSessionPage() {
             )}
 
             {/* Action Bar */}
-            <div className="flex items-center justify-between border-t border-zinc-800/50 bg-zinc-900/30 px-3 py-1.5 rounded-b-xl">
-              <div className="flex items-center gap-1.5">
+            <div className="flex items-center justify-between border-t border-zinc-800/50 bg-zinc-900/30 px-3 py-1.5 rounded-b-xl gap-2">
+              <div className="flex items-center gap-1.5 min-w-0">
                 <button
                   onClick={() => fileInputRef.current?.click()}
-                  className="flex h-7 items-center justify-center rounded-md px-2 text-zinc-500 hover:bg-zinc-800 hover:text-zinc-300 transition-colors"
+                  className="flex h-7 items-center justify-center rounded-md px-2 text-zinc-500 hover:bg-zinc-800 hover:text-zinc-300 transition-colors shrink-0"
                   aria-label="Attach file"
                   title="Attach files (Max 20MB)"
                   disabled={sendMutation.isPending}
@@ -324,10 +324,10 @@ export default function NewSessionPage() {
                   <Paperclip className="h-3.5 w-3.5" />
                 </button>
 
-                <div className="h-3.5 w-px bg-zinc-800/60 mx-0.5" />
+                <div className="h-3.5 w-px bg-zinc-800/60 mx-0.5 hidden sm:block" />
 
-                {/* Thinking Level */}
-                <div className="flex bg-zinc-900/50 p-0.5 rounded-md border border-zinc-800/60">
+                {/* Thinking Level — hidden on mobile */}
+                <div className="hidden sm:flex bg-zinc-900/50 p-0.5 rounded-md border border-zinc-800/60">
                   {(["", "low", "medium", "high"] as const).map((level) => (
                     <button
                       key={level}
