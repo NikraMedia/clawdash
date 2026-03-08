@@ -224,39 +224,51 @@ export const agentsRouter = router({
 
       const readSkillsFromDir = (dir: string, isSystem: boolean) => {
         try {
-          const entries = readdirSync(dir, { withFileTypes: true });
-          for (const entry of entries) {
-            if (!entry.isDirectory()) continue;
-            const skillPath = join(dir, entry.name);
+          if (!existsSync(dir)) return;
+          const entries = readdirSync(dir);
+          for (const entryName of entries) {
+            const skillPath = join(dir, entryName);
+            try {
+              const stat = statSync(skillPath);
+              if (!stat.isDirectory()) continue;
+            } catch {
+              continue;
+            }
             let description = "";
             let version = "—";
-            let displayName = entry.name;
+            let displayName = entryName;
 
             // Try SKILL.md
             try {
-              const skillMd = readFileSync(join(skillPath, "SKILL.md"), "utf8");
-              const nameMatch = skillMd.match(/^#\s+(.+)/m);
-              if (nameMatch) displayName = nameMatch[1].trim();
-              const descMatch = skillMd.match(/^#[^\n]*\n+([^\n]+)/);
-              if (descMatch) description = descMatch[1].slice(0, 120);
+              const skillMdPath = join(skillPath, "SKILL.md");
+              if (existsSync(skillMdPath)) {
+                const skillMd = readFileSync(skillMdPath, "utf8");
+                const nameMatch = skillMd.match(/^#\s+(.+)/m);
+                if (nameMatch) displayName = nameMatch[1].trim();
+                const descMatch = skillMd.match(/^#[^\n]*\n+([^\n]+)/);
+                if (descMatch) description = descMatch[1].slice(0, 120);
+              }
             } catch { /* no SKILL.md */ }
 
             // Try package.json for version
             try {
-              const pkg = JSON.parse(readFileSync(join(skillPath, "package.json"), "utf8"));
-              if (pkg.version) version = pkg.version;
-              if (pkg.description && !description) description = pkg.description.slice(0, 120);
+              const pkgPath = join(skillPath, "package.json");
+              if (existsSync(pkgPath)) {
+                const pkg = JSON.parse(readFileSync(pkgPath, "utf8"));
+                if (pkg.version) version = pkg.version;
+                if (pkg.description && !description) description = pkg.description.slice(0, 120);
+              }
             } catch { /* no package.json */ }
 
             skills.push({
-              name: entry.name,
+              name: entryName,
               description: description || displayName,
               version,
               isSystem,
-              isEnabled: !disabledSkills.includes(entry.name),
+              isEnabled: !disabledSkills.includes(entryName),
             });
           }
-        } catch { /* dir doesn't exist */ }
+        } catch { /* dir doesn't exist or read error */ }
       };
 
       readSkillsFromDir(SYSTEM_SKILLS_DIR, true);
