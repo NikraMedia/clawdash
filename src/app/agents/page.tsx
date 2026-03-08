@@ -47,6 +47,36 @@ const AGENT_META: Record<string, { role: string; color: string }> = {
   pieter: { role: "Tech", color: "zinc" },
 };
 
+const AGENT_DISPLAY_NAMES: Record<string, string> = {
+  manager: "Manager", main: "Manager",
+  steve: "Steve", ceo: "Steve",
+  gary: "Gary", marketing: "Gary",
+  jimmy: "Jimmy", content: "Jimmy",
+  neil: "Neil", seo: "Neil",
+  nate: "Nate", analytics: "Nate",
+  alex: "Alex", sales: "Alex",
+  warren: "Warren", finance: "Warren",
+  tom: "Tom", tax: "Tom",
+  robert: "Robert", legal: "Robert",
+  tiago: "Tiago", "notion-systems": "Tiago",
+  pieter: "Pieter", tech: "Pieter",
+};
+
+const AGENT_EMOJIS: Record<string, string> = {
+  manager: "🧠", main: "🧠",
+  steve: "👔", ceo: "👔",
+  gary: "📣", marketing: "📣",
+  jimmy: "✍️", content: "✍️",
+  neil: "🔍", seo: "🔍",
+  nate: "📊", analytics: "📊",
+  alex: "💼", sales: "💼",
+  warren: "💰", finance: "💰",
+  tom: "📋", tax: "📋",
+  robert: "⚖️", legal: "⚖️",
+  tiago: "🗂️", "notion-systems": "🗂️",
+  pieter: "💻", tech: "💻",
+};
+
 // Map display IDs to openclaw agent IDs
 const AGENT_ID_MAP: Record<string, string> = {
   steve: "ceo", gary: "marketing", jimmy: "content", neil: "seo",
@@ -773,20 +803,22 @@ function MobileAgentCard({ agent, sessionActivity, onChat }: {
   const meta = AGENT_META[agent.id] ?? { role: "Agent", color: "zinc" };
   const lastActive = sessionActivity[agent.id];
   const isOnline = lastActive && Date.now() - lastActive < 300_000; // 5min
+  const displayName = AGENT_DISPLAY_NAMES[agent.id] ?? agent.name ?? agent.id;
+  const emoji = AGENT_EMOJIS[agent.id] ?? agent.emoji ?? "🤖";
   return (
     <button
       onClick={() => onChat(agent.id)}
       className="flex flex-col items-center gap-2 rounded-xl border border-zinc-800/60 bg-zinc-900/60 p-4 hover:border-zinc-700 transition-colors text-center"
     >
       <div className="relative">
-        <span className="text-2xl">{agent.emoji || "\uD83E\uDD16"}</span>
+        <span className="text-2xl">{emoji}</span>
         <span className={cn(
           "absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-zinc-900",
           isOnline ? "bg-emerald-500" : "bg-zinc-600"
         )} />
       </div>
       <div>
-        <p className="text-sm font-medium text-zinc-200">{agent.name ?? agent.id}</p>
+        <p className="text-sm font-medium text-zinc-200">{displayName}</p>
         <p className="text-[10px] text-zinc-500">{meta.role}</p>
       </div>
       <span className="text-[10px] text-indigo-400 flex items-center gap-1">
@@ -928,19 +960,19 @@ export default function AgentsPage() {
       <div className={cn("flex flex-col overflow-hidden transition-all duration-300",
         selectedAgent ? "hidden md:flex md:flex-col md:w-3/5" : "flex flex-col w-full"
       )}>
-        <div className="flex items-center justify-between border-b border-zinc-800/60 px-4 sm:px-6 py-4 shrink-0">
-          <div>
+        <div className="flex items-center justify-between border-b border-zinc-800/60 px-4 sm:px-6 py-4 shrink-0 gap-2">
+          <div className="min-w-0">
             <h1 className="text-lg font-semibold text-zinc-100">Agents</h1>
-            <p className="text-[11px] text-zinc-500 mt-0.5">{agents.length} agents · Org Chart · Click to chat</p>
+            <p className="text-[11px] text-zinc-500 mt-0.5 truncate">{agents.length} agents · Org Chart · Click to chat</p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 shrink-0">
             <Button onClick={() => setShowRoundtable(true)} size="sm" variant="ghost"
               className="h-8 text-[11px] text-indigo-400 hover:text-indigo-300 border border-indigo-500/30 hover:border-indigo-400/50">
-              <Users className="h-3.5 w-3.5 mr-1" /> Roundtable
+              <Users className="h-3.5 w-3.5 sm:mr-1" /><span className="hidden sm:inline">Roundtable</span>
             </Button>
             <Button onClick={() => setShowCreateModal(true)} size="sm"
               className="h-8 bg-indigo-600 hover:bg-indigo-500 text-[11px]">
-              <Plus className="h-3.5 w-3.5 mr-1" /> New Agent
+              <Plus className="h-3.5 w-3.5 sm:mr-1" /><span className="hidden sm:inline">New Agent</span>
             </Button>
           </div>
         </div>
