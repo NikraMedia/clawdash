@@ -926,7 +926,7 @@ export default function AgentsPage() {
 
       {/* Hierarchy - hidden on mobile when agent selected */}
       <div className={cn("flex flex-col overflow-hidden transition-all duration-300",
-        selectedAgent ? "hidden md:flex md:w-3/5" : "w-full"
+        selectedAgent ? "hidden md:flex md:flex-col md:w-3/5" : "flex flex-col w-full"
       )}>
         <div className="flex items-center justify-between border-b border-zinc-800/60 px-4 sm:px-6 py-4 shrink-0">
           <div>
@@ -958,7 +958,7 @@ export default function AgentsPage() {
               </div>
             </div>
             {/* Desktop Hierarchy */}
-            <div className="hidden md:block h-full">
+            <div className="hidden md:flex md:flex-col h-full">
             <HierarchyView
               agents={agents}
               sessionCounts={{}}
