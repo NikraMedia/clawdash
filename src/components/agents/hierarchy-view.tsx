@@ -61,6 +61,7 @@ interface HierarchyViewProps {
   onCronClick: (agentId: string) => void;
   onDeleteClick: (agentId: string) => void;
   selectedAgentId: string | null;
+  activeRoundtableAgentId?: string | null;
 }
 
 const HARDCODED_AGENTS = [
@@ -263,7 +264,7 @@ function saveEdges(edges: Edge[]) {
 export function HierarchyView({
   agents, sessionActivity, cronCounts,
   onNodeClick, onModelChange, onMemoryClick, onPingClick, onSkillsClick, onCronClick, onDeleteClick,
-  selectedAgentId,
+  selectedAgentId, activeRoundtableAgentId,
 }: HierarchyViewProps) {
   const callbacks = useMemo(() => ({
     onNodeClick, onModelChange, onMemoryClick, onPingClick, onSkillsClick, onCronClick, onDeleteClick,
@@ -358,19 +359,31 @@ export function HierarchyView({
   }, [sessionActivity, cronCounts]);
 
   const displayNodes = useMemo(() => {
-    if (!highlightedNodeId) return nodes;
-    const connectedIds = new Set<string>([highlightedNodeId]);
-    edges.forEach((e) => {
-      if (e.source === highlightedNodeId || e.target === highlightedNodeId) {
-        connectedIds.add(e.source);
-        connectedIds.add(e.target);
+    return nodes.map((n) => {
+      const agentId = (n.data as { agentId?: string }).agentId;
+        const isRoundtableActive = !!activeRoundtableAgentId && agentId === activeRoundtableAgentId;
+        const isDimmedByRoundtable = !!activeRoundtableAgentId && !!agentId && agentId !== activeRoundtableAgentId;
+      if (!highlightedNodeId && !activeRoundtableAgentId) return n;
+      if (activeRoundtableAgentId) {
+        return {
+          ...n,
+          data: {
+            ...n.data,
+            dimmed: isDimmedByRoundtable,
+            roundtableActive: isRoundtableActive,
+          },
+        };
       }
+      const connectedIds = new Set<string>([highlightedNodeId!]);
+      edges.forEach((e) => {
+        if (e.source === highlightedNodeId || e.target === highlightedNodeId) {
+          connectedIds.add(e.source);
+          connectedIds.add(e.target);
+        }
+      });
+      return { ...n, data: { ...n.data, dimmed: !connectedIds.has(n.id) } };
     });
-    return nodes.map((n) => ({
-      ...n,
-      data: { ...n.data, dimmed: !connectedIds.has(n.id) },
-    }));
-  }, [nodes, edges, highlightedNodeId]);
+  }, [nodes, edges, highlightedNodeId, activeRoundtableAgentId]);
 
   const displayEdges = useMemo(() => {
     if (!highlightedNodeId) return edges;

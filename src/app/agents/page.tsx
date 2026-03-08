@@ -28,6 +28,8 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { HierarchyView } from "@/components/agents/hierarchy-view";
+import { RoundtableModal } from "@/components/agents/roundtable";
+import { Users } from "lucide-react";
 
 /* ─── Types ─── */
 const AGENT_META: Record<string, { role: string; color: string }> = {
@@ -769,6 +771,8 @@ export default function AgentsPage() {
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [deleteAgent, setDeleteAgent] = useState<AgentData | null>(null);
+  const [showRoundtable, setShowRoundtable] = useState(false);
+  const [activeRoundtableAgent, setActiveRoundtableAgent] = useState<string | null>(null);
 
   const trpc = useTRPC();
   const queryClient = useQueryClient();
@@ -881,6 +885,12 @@ export default function AgentsPage() {
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
       {showCreateModal && <CreateAgentModal onClose={() => setShowCreateModal(false)} onToast={showToast} />}
       {deleteAgent && <DeleteConfirmModal agent={deleteAgent} onClose={() => { setDeleteAgent(null); setSelectedAgent(null); }} onToast={showToast} />}
+      {showRoundtable && (
+        <RoundtableModal
+          onClose={() => { setShowRoundtable(false); setActiveRoundtableAgent(null); }}
+          onAgentActive={setActiveRoundtableAgent}
+        />
+      )}
 
       {/* Hierarchy */}
       <div className={cn("flex flex-col overflow-hidden transition-all duration-300", selectedAgent ? "w-3/5" : "w-full")}>
@@ -889,10 +899,16 @@ export default function AgentsPage() {
             <h1 className="text-lg font-semibold text-zinc-100">Agents</h1>
             <p className="text-[11px] text-zinc-500 mt-0.5">{agents.length} agents · Org Chart · Click to chat</p>
           </div>
-          <Button onClick={() => setShowCreateModal(true)} size="sm"
-            className="h-8 bg-indigo-600 hover:bg-indigo-500 text-[11px]">
-            <Plus className="h-3.5 w-3.5 mr-1" /> New Agent
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button onClick={() => setShowRoundtable(true)} size="sm" variant="ghost"
+              className="h-8 text-[11px] text-indigo-400 hover:text-indigo-300 border border-indigo-500/30 hover:border-indigo-400/50">
+              <Users className="h-3.5 w-3.5 mr-1" /> Roundtable
+            </Button>
+            <Button onClick={() => setShowCreateModal(true)} size="sm"
+              className="h-8 bg-indigo-600 hover:bg-indigo-500 text-[11px]">
+              <Plus className="h-3.5 w-3.5 mr-1" /> New Agent
+            </Button>
+          </div>
         </div>
         <div className="flex-1 min-h-0">
           {isLoading ? (
@@ -911,6 +927,7 @@ export default function AgentsPage() {
               onCronClick={handleCronClick}
               onDeleteClick={handleDeleteClick}
               selectedAgentId={selectedAgent?.id ?? null}
+              activeRoundtableAgentId={activeRoundtableAgent}
             />
           )}
         </div>

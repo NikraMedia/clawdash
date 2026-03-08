@@ -34,6 +34,7 @@ export interface HierarchyNodeData {
   onSkillsClick?: () => void;
   onCronClick?: () => void;
   onDeleteClick?: () => void;
+  roundtableActive?: boolean;
   [key: string]: unknown;
 }
 
@@ -79,7 +80,7 @@ const HANDLE_STYLE = {
 function HierarchyNodeComponent({ data }: NodeProps<HierarchyNodeType>) {
   const {
     label, emoji, role, model, isChef, isManager, color, dimmed,
-    onlineStatus = "inactive",
+    onlineStatus = "inactive", roundtableActive,
     onModelChange, onChatClick, onMemoryClick, onSkillsClick, onCronClick, onDeleteClick,
     agentId,
   } = data;
@@ -108,7 +109,8 @@ function HierarchyNodeComponent({ data }: NodeProps<HierarchyNodeType>) {
         c.border, c.glow,
         "hover:bg-zinc-900/70 hover:shadow-2xl hover:scale-[1.02]",
         isChef && "ring-1 ring-inset ring-amber-400/30",
-        dimmed && "opacity-20 scale-[0.97]"
+        dimmed && "opacity-20 scale-[0.97]",
+        roundtableActive && "ring-2 ring-indigo-400 shadow-[0_0_30px_rgba(99,102,241,0.5)] scale-[1.04]",
       )}
     >
       {/* TOP Handle (target) - Blender style */}
