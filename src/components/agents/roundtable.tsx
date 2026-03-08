@@ -7,307 +7,426 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
-import { Loader2, X, Users, Send, ChevronDown, ChevronUp } from "lucide-react";
+import {
+  Loader2, X, Users, Send, ChevronDown, ChevronUp,
+  RotateCcw, CheckCircle2, AlertCircle, Clock,
+} from "lucide-react";
 
+/* ─── Constants ─── */
 const ROUNDTABLE_AGENTS = [
-  { id: "steve", name: "Steve", emoji: "🧠", role: "CEO" },
-  { id: "gary", name: "Gary", emoji: "📣", role: "Marketing" },
-  { id: "jimmy", name: "Jimmy", emoji: "✍️", role: "Content" },
-  { id: "neil", name: "Neil", emoji: "🔍", role: "SEO" },
-  { id: "nate", name: "Nate", emoji: "📊", role: "Analytics" },
-  { id: "alex", name: "Alex", emoji: "🤝", role: "Sales" },
-  { id: "warren", name: "Warren", emoji: "💰", role: "Finance" },
-  { id: "tom", name: "Tom", emoji: "🧾", role: "Tax" },
-  { id: "robert", name: "Robert", emoji: "⚖️", role: "Legal" },
-  { id: "tiago", name: "Tiago", emoji: "🗓️", role: "Notion" },
-  { id: "pieter", name: "Pieter", emoji: "💻", role: "Tech" },
+  { id: "steve",  name: "Steve",  emoji: "🧠", role: "CEO",       realId: "ceo"       },
+  { id: "gary",   name: "Gary",   emoji: "📣", role: "Marketing", realId: "marketing" },
+  { id: "jimmy",  name: "Jimmy",  emoji: "✍️", role: "Content",   realId: "content"   },
+  { id: "neil",   name: "Neil",   emoji: "🔍", role: "SEO",       realId: "seo"       },
+  { id: "nate",   name: "Nate",   emoji: "📊", role: "Analytics", realId: "analytics" },
+  { id: "alex",   name: "Alex",   emoji: "🤝", role: "Sales",     realId: "sales"     },
+  { id: "warren", name: "Warren", emoji: "💰", role: "Finance",   realId: "finance"   },
+  { id: "tom",    name: "Tom",    emoji: "🧾", role: "Tax",       realId: "tax"       },
+  { id: "robert", name: "Robert", emoji: "⚖️", role: "Legal",     realId: "legal"     },
+  { id: "tiago",  name: "Tiago",  emoji: "🗓️", role: "Notion",    realId: "notion"    },
+  { id: "pieter", name: "Pieter", emoji: "💻", role: "Tech",      realId: "tech"      },
 ];
 
-const AGENT_ID_MAP: Record<string, string> = {
-  steve: "ceo", gary: "marketing", jimmy: "content", neil: "seo",
-  nate: "analytics", alex: "sales", warren: "finance", tom: "tax",
-  robert: "legal", tiago: "notion", pieter: "tech", manager: "main",
-};
+const STORAGE_KEY = "clawdash-roundtable-state";
 
-interface RoundtableResponse {
+/* ─── Types ─── */
+export interface RoundtableEntry {
   agentId: string;
   name: string;
   emoji: string;
   role: string;
   content: string;
   status: "pending" | "loading" | "done" | "error";
+  sessionKey?: string;
+  ts?: number;
 }
 
+interface RoundtableState {
+  topic: string;
+  entries: RoundtableEntry[];
+  phase: "setup" | "running" | "done";
+  managerSummary?: string;
+  startedAt: number;
+  currentIndex: number;
+}
+
+/* ─── Helpers ─── */
+async function pollForResponse(sessionKey: string, maxWaitMs = 90000): Promise<string> {
+  const start = Date.now();
+  const interval = 3000;
+
+  while (Date.now() - start < maxWaitMs) {
+    await new Promise((r) => setTimeout(r, interval));
+    try {
+      const url = `/api/trpc/sessions.history?input=${encodeURIComponent(
+        JSON.stringify({ json: { sessionKey, limit: 20 } })
+      )}`;
+      const res = await fetch(url);
+      if (!res.ok) continue;
+      const data = await res.json();
+
+      // tRPC v11 response unwrap
+      const raw =
+        data?.result?.data?.json ??
+        data?.result?.data ??
+        data?.result ??
+        data;
+
+      const messages: Array<{ role: string; content?: unknown; text?: string }> =
+        Array.isArray(raw)
+          ? raw
+          : Array.isArray(raw?.messages)
+          ? raw.messages
+          : Array.isArray(raw?.json)
+          ? raw.json
+          : [];
+
+      const assistantMsgs = messages.filter((m) => m.role === "assistant");
+      if (assistantMsgs.length > 0) {
+        const last = assistantMsgs[assistantMsgs.length - 1];
+        const text =
+          typeof last.content === "string"
+            ? last.content
+            : Array.isArray(last.content)
+            ? last.content
+                .filter((b: { type: string }) => b.type === "text")
+                .map((b: { text?: string }) => b.text ?? "")
+                .join("")
+            : last.text ?? "";
+        if (text.trim()) return text.trim();
+      }
+    } catch {
+      // network hiccup — keep polling
+    }
+  }
+  return "";
+}
+
+/* ─── Props ─── */
 interface RoundtableModalProps {
   onClose: () => void;
   onAgentActive: (agentId: string | null) => void;
 }
 
+/* ─── Main Component ─── */
 export function RoundtableModal({ onClose, onAgentActive }: RoundtableModalProps) {
   const [topic, setTopic] = useState("");
   const [selectedAgents, setSelectedAgents] = useState<string[]>(
     ROUNDTABLE_AGENTS.map((a) => a.id)
   );
-  const [responses, setResponses] = useState<RoundtableResponse[]>([]);
-  const [isRunning, setIsRunning] = useState(false);
-  const [phase, setPhase] = useState<"setup" | "running" | "done">("setup");
   const [showAgentPicker, setShowAgentPicker] = useState(false);
+  const [state, setState] = useState<RoundtableState | null>(null);
   const [managerSummary, setManagerSummary] = useState<string | null>(null);
   const [summaryLoading, setSummaryLoading] = useState(false);
+  const [hasSaved, setHasSaved] = useState(false);
+
   const abortRef = useRef(false);
+  const runningRef = useRef(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const trpc = useTRPC();
-
   const sendMutation = useMutation(trpc.sessions.send.mutationOptions({}));
 
+  // Load saved state on mount
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) {
+        const parsed: RoundtableState = JSON.parse(saved);
+        // Only restore if less than 2 hours old
+        if (Date.now() - parsed.startedAt < 2 * 60 * 60 * 1000) {
+          setState(parsed);
+          setHasSaved(true);
+          if (parsed.managerSummary) setManagerSummary(parsed.managerSummary);
+        }
+      }
+    } catch { /* ignore */ }
+  }, []);
+
+  // Persist state
+  useEffect(() => {
+    if (state) {
+      const toSave = { ...state, managerSummary: managerSummary ?? undefined };
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(toSave));
+    }
+  }, [state, managerSummary]);
+
+  // Auto-scroll
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
-  }, [responses]);
+  }, [state?.entries]);
 
-  const toggleAgent = (id: string) => {
-    setSelectedAgents((prev) =>
-      prev.includes(id) ? prev.filter((a) => a !== id) : [...prev, id]
-    );
-  };
+  const send = useCallback(
+    (sessionKey: string, message: string): Promise<void> =>
+      new Promise((resolve, reject) => {
+        sendMutation.mutate(
+          { sessionKey, message, idempotencyKey: crypto.randomUUID() },
+          { onSuccess: () => resolve(), onError: reject }
+        );
+      }),
+    [sendMutation]
+  );
 
-  const startRoundtable = useCallback(async () => {
+  const runRoundtable = useCallback(
+    async (initialState: RoundtableState, startFrom = 0) => {
+      if (runningRef.current) return;
+      runningRef.current = true;
+      abortRef.current = false;
+
+      const ordered = ROUNDTABLE_AGENTS.filter((a) =>
+        initialState.entries.some((e) => e.agentId === a.id)
+      );
+
+      for (let i = startFrom; i < ordered.length; i++) {
+        if (abortRef.current) break;
+        const agent = ordered[i];
+        const sessionKey = `agent:${agent.realId}:rt:${initialState.startedAt}`;
+
+        onAgentActive(agent.id);
+
+        // Set loading
+        setState((prev) => {
+          if (!prev) return prev;
+          const entries = prev.entries.map((e) =>
+            e.agentId === agent.id ? { ...e, status: "loading" as const, sessionKey } : e
+          );
+          return { ...prev, entries, currentIndex: i };
+        });
+
+        try {
+          const prompt = `Roundtable-Thema: "${initialState.topic}"\n\nDu bist ${agent.name}, ${agent.role}-Experte bei Nikramedia.\nGib deine Perspektive aus deinem Fachbereich. Sei konkret und präzise (3-5 Sätze). Kein Intro, direkt zum Punkt. Auf Deutsch.`;
+
+          await send(sessionKey, prompt);
+
+          // Wait 2s for session to be created, then poll
+          await new Promise((r) => setTimeout(r, 2000));
+          const text = await pollForResponse(sessionKey, 90000);
+
+          setState((prev) => {
+            if (!prev) return prev;
+            const entries = prev.entries.map((e) =>
+              e.agentId === agent.id
+                ? {
+                    ...e,
+                    status: text ? ("done" as const) : ("error" as const),
+                    content: text || "Keine Antwort erhalten.",
+                    ts: Date.now(),
+                  }
+                : e
+            );
+            return { ...prev, entries };
+          });
+        } catch (err) {
+          setState((prev) => {
+            if (!prev) return prev;
+            const entries = prev.entries.map((e) =>
+              e.agentId === agent.id
+                ? { ...e, status: "error" as const, content: `Fehler: ${String(err)}` }
+                : e
+            );
+            return { ...prev, entries };
+          });
+        }
+
+        onAgentActive(null);
+        await new Promise((r) => setTimeout(r, 800));
+      }
+
+      setState((prev) => (prev ? { ...prev, phase: "done" } : prev));
+      runningRef.current = false;
+      onAgentActive(null);
+    },
+    [send, onAgentActive]
+  );
+
+  const startRoundtable = useCallback(() => {
     if (!topic.trim() || selectedAgents.length === 0) return;
-    abortRef.current = false;
-    setIsRunning(true);
-    setPhase("running");
-    setManagerSummary(null);
+    localStorage.removeItem(STORAGE_KEY);
 
     const ordered = ROUNDTABLE_AGENTS.filter((a) => selectedAgents.includes(a.id));
+    const ts = Date.now();
 
-    // Init responses
-    setResponses(
-      ordered.map((a) => ({
+    const initialState: RoundtableState = {
+      topic,
+      phase: "running",
+      startedAt: ts,
+      currentIndex: 0,
+      entries: ordered.map((a) => ({
         agentId: a.id,
         name: a.name,
         emoji: a.emoji,
         role: a.role,
         content: "",
         status: "pending",
-      }))
+      })),
+    };
+
+    setState(initialState);
+    runRoundtable(initialState, 0);
+  }, [topic, selectedAgents, runRoundtable]);
+
+  const resumeRoundtable = useCallback(() => {
+    if (!state) return;
+    const startFrom = state.entries.findIndex(
+      (e) => e.status === "pending" || e.status === "loading"
     );
-
-    for (let i = 0; i < ordered.length; i++) {
-      if (abortRef.current) break;
-      const agent = ordered[i];
-      const realId = AGENT_ID_MAP[agent.id] ?? agent.id;
-      const sessionKey = `roundtable:${realId}:${Date.now()}`;
-
-      onAgentActive(agent.id);
-
-      // Set loading
-      setResponses((prev) =>
-        prev.map((r) =>
-          r.agentId === agent.id ? { ...r, status: "loading" } : r
-        )
+    if (startFrom === -1) return;
+    // Reset loading ones back to pending
+    setState((prev) => {
+      if (!prev) return prev;
+      const entries = prev.entries.map((e) =>
+        e.status === "loading" ? { ...e, status: "pending" as const } : e
       );
+      return { ...prev, phase: "running", entries };
+    });
+    setTimeout(() => runRoundtable({ ...state, phase: "running" }, startFrom), 100);
+  }, [state, runRoundtable]);
 
-      try {
-        const prompt = `Roundtable-Thema: "${topic}"\n\nGib deine Perspektive als ${agent.role}-Experte. Kurz und präzise (3-5 Sätze). Kein Intro, direkt zum Punkt.`;
-
-        await new Promise<void>((resolve, reject) => {
-          sendMutation.mutate(
-            {
-              sessionKey,
-              message: prompt,
-              idempotencyKey: crypto.randomUUID(),
-            },
-            {
-              onSuccess: () => resolve(),
-              onError: (err) => reject(err),
-            }
-          );
-        });
-
-        // Poll for response
-        let responseText = "";
-        let attempts = 0;
-        while (attempts < 30 && !abortRef.current) {
-          await new Promise((r) => setTimeout(r, 2000));
-          attempts++;
-
-          try {
-            const res = await fetch(
-              `/api/trpc/sessions.history?input=${encodeURIComponent(
-                JSON.stringify({ json: { sessionKey, limit: 10 } })
-              )}`
-            );
-            const data = await res.json();
-            const msgs = data?.result?.data?.json?.messages ?? data?.result?.data?.json ?? [];
-            const assistantMsgs = msgs.filter(
-              (m: { role: string }) => m.role === "assistant"
-            );
-            if (assistantMsgs.length > 0) {
-              const last = assistantMsgs[assistantMsgs.length - 1];
-              const text =
-                typeof last.content === "string"
-                  ? last.content
-                  : Array.isArray(last.content)
-                  ? last.content
-                      .filter((b: { type: string }) => b.type === "text")
-                      .map((b: { text?: string }) => b.text ?? "")
-                      .join("")
-                  : last.text ?? "";
-              if (text) {
-                responseText = text;
-                break;
-              }
-            }
-          } catch {
-            // continue polling
-          }
-        }
-
-        setResponses((prev) =>
-          prev.map((r) =>
-            r.agentId === agent.id
-              ? {
-                  ...r,
-                  status: responseText ? "done" : "error",
-                  content: responseText || "Keine Antwort erhalten.",
-                }
-              : r
-          )
-        );
-      } catch {
-        setResponses((prev) =>
-          prev.map((r) =>
-            r.agentId === agent.id
-              ? { ...r, status: "error", content: "Fehler beim Abrufen der Antwort." }
-              : r
-          )
-        );
-      }
-
-      onAgentActive(null);
-      // Small pause between agents
-      await new Promise((r) => setTimeout(r, 500));
-    }
-
-    setPhase("done");
-    setIsRunning(false);
-    onAgentActive(null);
-  }, [topic, selectedAgents, sendMutation, onAgentActive]);
-
-  const generateSummary = async () => {
+  const generateSummary = useCallback(async () => {
+    if (!state) return;
     setSummaryLoading(true);
-    const doneResponses = responses.filter((r) => r.status === "done");
-    const summaryText = doneResponses
-      .map((r) => `**${r.name} (${r.role}):** ${r.content}`)
-      .join("\n\n");
+    const done = state.entries.filter((e) => e.status === "done");
+    const summaryPrompt = `Fasse die folgenden Team-Inputs zum Thema "${state.topic}" zusammen. Identifiziere die 3 wichtigsten Punkte und nenne direkte nächste Schritte:\n\n${done
+      .map((e) => `**${e.name} (${e.role}):** ${e.content}`)
+      .join("\n\n")}`;
 
-    const sessionKey = `roundtable:summary:${Date.now()}`;
-    const prompt = `Fasse folgende Team-Inputs zum Thema "${topic}" in 3-4 Sätzen zusammen. Erkenne Gemeinsamkeiten und wichtigste Punkte:\n\n${summaryText}`;
-
+    const ts = Date.now();
+    const sessionKey = `agent:main:rt-summary:${ts}`;
     try {
-      await new Promise<void>((resolve, reject) => {
-        sendMutation.mutate(
-          { sessionKey, message: prompt, idempotencyKey: crypto.randomUUID() },
-          { onSuccess: () => resolve(), onError: reject }
-        );
-      });
-
-      let summary = "";
-      for (let i = 0; i < 15; i++) {
-        await new Promise((r) => setTimeout(r, 2000));
-        try {
-          const res = await fetch(
-            `/api/trpc/sessions.history?input=${encodeURIComponent(
-              JSON.stringify({ json: { sessionKey, limit: 5 } })
-            )}`
-          );
-          const data = await res.json();
-          const msgs = data?.result?.data?.json?.messages ?? [];
-          const last = msgs.filter((m: { role: string }) => m.role === "assistant").pop();
-          if (last) {
-            summary =
-              typeof last.content === "string"
-                ? last.content
-                : last.text ?? "";
-            if (summary) break;
-          }
-        } catch {
-          // continue
-        }
-      }
-      setManagerSummary(summary || "Zusammenfassung nicht verfügbar.");
+      await send(sessionKey, summaryPrompt);
+      await new Promise((r) => setTimeout(r, 2000));
+      const text = await pollForResponse(sessionKey, 60000);
+      setManagerSummary(text || "Zusammenfassung nicht verfügbar.");
+      setState((prev) => (prev ? { ...prev, managerSummary: text } : prev));
     } catch {
-      setManagerSummary("Fehler beim Generieren der Zusammenfassung.");
+      setManagerSummary("Fehler beim Generieren.");
     }
     setSummaryLoading(false);
+  }, [state, send]);
+
+  const clearAndReset = () => {
+    abortRef.current = true;
+    runningRef.current = false;
+    localStorage.removeItem(STORAGE_KEY);
+    setState(null);
+    setManagerSummary(null);
+    setTopic("");
+    setHasSaved(false);
+    onAgentActive(null);
   };
 
-  return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm"
-      onClick={onClose}
-    >
-      <div
-        className="bg-zinc-950 border border-zinc-800 rounded-2xl w-[780px] max-h-[85vh] flex flex-col shadow-2xl"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-800/60 shrink-0">
-          <div className="flex items-center gap-3">
-            <Users className="h-5 w-5 text-indigo-400" />
-            <div>
-              <h2 className="text-base font-semibold text-zinc-100">Roundtable</h2>
-              <p className="text-[11px] text-zinc-500">Alle Agents antworten auf ein Thema</p>
-            </div>
-          </div>
-          <Button onClick={onClose} variant="ghost" size="sm" className="h-8 w-8 p-0">
-            <X className="h-4 w-4" />
-          </Button>
-        </div>
+  /* ─── Progress ─── */
+  const doneCount = state?.entries.filter((e) => e.status === "done").length ?? 0;
+  const totalCount = state?.entries.length ?? 0;
+  const progress = totalCount > 0 ? (doneCount / totalCount) * 100 : 0;
+  const currentAgent = state?.entries.find((e) => e.status === "loading");
 
-        {/* Setup Phase */}
-        {phase === "setup" && (
-          <div className="flex flex-col gap-4 px-6 py-5">
+  /* ─── Render: Setup ─── */
+  if (!state) {
+    return (
+      <div
+        className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm"
+        onClick={onClose}
+      >
+        <div
+          className="bg-zinc-950 border border-zinc-800 rounded-2xl w-[640px] shadow-2xl"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {/* Header */}
+          <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-800/60">
+            <div className="flex items-center gap-3">
+              <div className="h-9 w-9 rounded-xl bg-indigo-600/20 flex items-center justify-center">
+                <Users className="h-4.5 w-4.5 text-indigo-400" />
+              </div>
+              <div>
+                <h2 className="text-base font-semibold text-zinc-100">Roundtable</h2>
+                <p className="text-[11px] text-zinc-500">Alle Agents antworten auf ein Thema</p>
+              </div>
+            </div>
+            <Button onClick={onClose} variant="ghost" size="sm" className="h-8 w-8 p-0 text-zinc-500">
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
+
+          <div className="p-6 space-y-5">
+            {/* Saved state banner */}
+            {hasSaved && (
+              <div className="flex items-center justify-between bg-amber-950/30 border border-amber-700/40 rounded-xl px-4 py-3">
+                <div className="flex items-center gap-2 text-sm text-amber-300">
+                  <Clock className="h-4 w-4" />
+                  Gespeicherter Roundtable gefunden
+                </div>
+                <Button
+                  onClick={() => setState(JSON.parse(localStorage.getItem(STORAGE_KEY)!))}
+                  size="sm"
+                  className="h-7 text-[11px] bg-amber-700/60 hover:bg-amber-600 text-amber-100"
+                >
+                  Fortsetzen
+                </Button>
+              </div>
+            )}
+
             {/* Topic */}
             <div>
-              <label className="text-xs text-zinc-400 mb-2 block">Thema / Frage</label>
+              <label className="text-xs font-medium text-zinc-400 mb-2 block">
+                Thema / Frage an das Team
+              </label>
               <Textarea
                 value={topic}
                 onChange={(e) => setTopic(e.target.value)}
                 placeholder="z.B. Wie können wir unsere Preise erhöhen ohne Kunden zu verlieren?"
-                className="bg-zinc-900 border-zinc-700 text-zinc-100 resize-none h-20"
+                className="bg-zinc-900 border-zinc-700 text-zinc-100 resize-none h-24 text-sm placeholder:text-zinc-600"
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && e.metaKey) startRoundtable();
+                }}
               />
+              <p className="text-[10px] text-zinc-600 mt-1">⌘+Enter zum Starten</p>
             </div>
 
             {/* Agent Picker */}
             <div>
               <button
                 onClick={() => setShowAgentPicker((p) => !p)}
-                className="flex items-center gap-2 text-xs text-zinc-400 hover:text-zinc-200 transition-colors"
+                className="flex items-center gap-2 text-xs text-zinc-400 hover:text-zinc-200 transition-colors w-full"
               >
-                {showAgentPicker ? (
-                  <ChevronUp className="h-3.5 w-3.5" />
-                ) : (
-                  <ChevronDown className="h-3.5 w-3.5" />
-                )}
-                Agents auswählen ({selectedAgents.length}/{ROUNDTABLE_AGENTS.length})
+                {showAgentPicker ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+                <span>Teilnehmer auswählen</span>
+                <span className="ml-auto bg-zinc-800 text-zinc-400 rounded-full px-2 py-0.5 text-[10px]">
+                  {selectedAgents.length}/{ROUNDTABLE_AGENTS.length}
+                </span>
               </button>
               {showAgentPicker && (
-                <div className="mt-2 grid grid-cols-4 gap-2">
+                <div className="mt-3 grid grid-cols-4 gap-2">
+                  <button
+                    onClick={() =>
+                      setSelectedAgents(
+                        selectedAgents.length === ROUNDTABLE_AGENTS.length
+                          ? []
+                          : ROUNDTABLE_AGENTS.map((a) => a.id)
+                      )
+                    }
+                    className="col-span-4 text-[10px] text-zinc-500 hover:text-zinc-300 text-left py-1"
+                  >
+                    {selectedAgents.length === ROUNDTABLE_AGENTS.length ? "Alle abwählen" : "Alle auswählen"}
+                  </button>
                   {ROUNDTABLE_AGENTS.map((a) => (
                     <button
                       key={a.id}
-                      onClick={() => toggleAgent(a.id)}
+                      onClick={() =>
+                        setSelectedAgents((prev) =>
+                          prev.includes(a.id) ? prev.filter((x) => x !== a.id) : [...prev, a.id]
+                        )
+                      }
                       className={cn(
-                        "flex items-center gap-2 px-3 py-2 rounded-lg text-xs border transition-all",
+                        "flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs border transition-all",
                         selectedAgents.includes(a.id)
-                          ? "bg-indigo-600/20 border-indigo-500/60 text-indigo-300"
-                          : "bg-zinc-900 border-zinc-700/60 text-zinc-500"
+                          ? "bg-indigo-600/20 border-indigo-500/50 text-indigo-300"
+                          : "bg-zinc-900 border-zinc-700/50 text-zinc-500 hover:border-zinc-600"
                       )}
                     >
                       <span>{a.emoji}</span>
-                      <span>{a.name}</span>
+                      <span className="font-medium">{a.name}</span>
                     </button>
                   ))}
                 </div>
@@ -317,144 +436,212 @@ export function RoundtableModal({ onClose, onAgentActive }: RoundtableModalProps
             <Button
               onClick={startRoundtable}
               disabled={!topic.trim() || selectedAgents.length === 0}
-              className="bg-indigo-600 hover:bg-indigo-500 w-full"
+              className="w-full bg-indigo-600 hover:bg-indigo-500 h-10"
             >
               <Send className="h-4 w-4 mr-2" />
-              Roundtable starten
+              Roundtable starten ({selectedAgents.length} Agents)
             </Button>
           </div>
-        )}
+        </div>
+      </div>
+    );
+  }
 
-        {/* Running / Done Phase */}
-        {(phase === "running" || phase === "done") && (
-          <div className="flex flex-col flex-1 min-h-0">
-            {/* Topic bar */}
-            <div className="px-6 py-3 border-b border-zinc-800/40 shrink-0">
-              <p className="text-xs text-zinc-500">Thema:</p>
-              <p className="text-sm text-zinc-200 font-medium">{topic}</p>
+  /* ─── Render: Running / Done ─── */
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      <div
+        className="bg-zinc-950 border border-zinc-800 rounded-2xl w-[820px] h-[85vh] flex flex-col shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-800/60 shrink-0">
+          <div className="flex items-center gap-3 min-w-0 flex-1">
+            <div className="h-9 w-9 rounded-xl bg-indigo-600/20 flex items-center justify-center shrink-0">
+              <Users className="h-4 w-4 text-indigo-400" />
             </div>
-
-            {/* Responses */}
-            <ScrollArea className="flex-1 min-h-0 px-6 py-4">
-              <div ref={scrollRef} className="space-y-4">
-                {responses.map((r) => (
-                  <div
-                    key={r.agentId}
-                    className={cn(
-                      "rounded-xl border p-4 transition-all duration-300",
-                      r.status === "loading"
-                        ? "border-indigo-500/60 bg-indigo-950/30 animate-pulse"
-                        : r.status === "done"
-                        ? "border-zinc-700/60 bg-zinc-900/50"
-                        : r.status === "error"
-                        ? "border-red-700/40 bg-red-950/20"
-                        : "border-zinc-800/40 bg-zinc-950/40 opacity-50"
-                    )}
-                  >
-                    <div className="flex items-center gap-2 mb-2">
-                      <span className="text-lg">{r.emoji}</span>
-                      <span className="text-sm font-semibold text-zinc-200">{r.name}</span>
-                      <span className="text-xs text-zinc-500">{r.role}</span>
-                      {r.status === "loading" && (
-                        <Loader2 className="h-3.5 w-3.5 animate-spin text-indigo-400 ml-auto" />
-                      )}
-                      {r.status === "done" && (
-                        <span className="ml-auto text-xs text-emerald-400">✓</span>
-                      )}
-                    </div>
-                    {r.status === "loading" && (
-                      <div className="flex gap-1 mt-2">
-                        <span className="h-1.5 w-1.5 rounded-full bg-indigo-400 animate-bounce [animation-delay:0ms]" />
-                        <span className="h-1.5 w-1.5 rounded-full bg-indigo-400 animate-bounce [animation-delay:150ms]" />
-                        <span className="h-1.5 w-1.5 rounded-full bg-indigo-400 animate-bounce [animation-delay:300ms]" />
-                      </div>
-                    )}
-                    {(r.status === "done" || r.status === "error") && r.content && (
-                      <p className="text-sm text-zinc-300 leading-relaxed">{r.content}</p>
-                    )}
-                  </div>
-                ))}
-
-                {/* Manager Summary */}
-                {phase === "done" && (
-                  <div className="rounded-xl border border-amber-500/40 bg-amber-950/20 p-4">
-                    <div className="flex items-center gap-2 mb-2">
-                      <span className="text-lg">📋</span>
-                      <span className="text-sm font-semibold text-amber-300">Manager Zusammenfassung</span>
-                    </div>
-                    {!managerSummary && !summaryLoading && (
-                      <Button
-                        onClick={generateSummary}
-                        size="sm"
-                        className="bg-amber-600/80 hover:bg-amber-500 text-xs h-7"
-                      >
-                        Zusammenfassung generieren
-                      </Button>
-                    )}
-                    {summaryLoading && (
-                      <div className="flex items-center gap-2 text-xs text-amber-400">
-                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                        Manager fasst zusammen...
-                      </div>
-                    )}
-                    {managerSummary && (
-                      <p className="text-sm text-zinc-300 leading-relaxed">{managerSummary}</p>
-                    )}
-                  </div>
-                )}
-              </div>
-            </ScrollArea>
-
-            {/* Footer */}
-            <div className="px-6 py-3 border-t border-zinc-800/60 flex items-center justify-between shrink-0">
-              {phase === "running" && (
-                <div className="flex items-center gap-2 text-xs text-zinc-400">
-                  <Loader2 className="h-3.5 w-3.5 animate-spin text-indigo-400" />
-                  {responses.filter((r) => r.status === "done").length}/{responses.length} Agents fertig
-                </div>
-              )}
-              {phase === "done" && (
-                <span className="text-xs text-emerald-400">
-                  ✓ Roundtable abgeschlossen
-                </span>
-              )}
-              <div className="flex gap-2 ml-auto">
-                {phase === "done" && (
-                  <Button
-                    onClick={() => {
-                      setPhase("setup");
-                      setResponses([]);
-                      setManagerSummary(null);
-                      setTopic("");
-                    }}
-                    variant="ghost"
-                    size="sm"
-                    className="text-xs h-7"
-                  >
-                    Neues Thema
-                  </Button>
-                )}
-                {phase === "running" && (
-                  <Button
-                    onClick={() => {
-                      abortRef.current = true;
-                      setIsRunning(false);
-                      setPhase("done");
-                      onAgentActive(null);
-                    }}
-                    variant="ghost"
-                    size="sm"
-                    className="text-xs h-7 text-red-400"
-                  >
-                    Abbrechen
-                  </Button>
-                )}
-                <Button onClick={onClose} variant="ghost" size="sm" className="text-xs h-7">
-                  Schließen
-                </Button>
+            <div className="min-w-0">
+              <h2 className="text-sm font-semibold text-zinc-100 truncate">{state.topic}</h2>
+              <div className="flex items-center gap-2 mt-0.5">
+                {state.phase === "running" && currentAgent ? (
+                  <p className="text-[11px] text-indigo-400 flex items-center gap-1">
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                    {currentAgent.emoji} {currentAgent.name} denkt...
+                  </p>
+                ) : state.phase === "done" ? (
+                  <p className="text-[11px] text-emerald-400 flex items-center gap-1">
+                    <CheckCircle2 className="h-3 w-3" />
+                    Abgeschlossen · {doneCount}/{totalCount} Antworten
+                  </p>
+                ) : null}
               </div>
             </div>
           </div>
+
+          <div className="flex items-center gap-2 shrink-0">
+            <Button onClick={clearAndReset} variant="ghost" size="sm"
+              className="h-7 text-[10px] text-zinc-500 hover:text-zinc-300 gap-1">
+              <RotateCcw className="h-3 w-3" /> Neu
+            </Button>
+            <Button onClick={onClose} variant="ghost" size="sm" className="h-8 w-8 p-0 text-zinc-500">
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+
+        {/* Progress Bar */}
+        <div className="h-1 bg-zinc-800 shrink-0">
+          <div
+            className="h-full bg-indigo-500 transition-all duration-500"
+            style={{ width: `${progress}%` }}
+          />
+        </div>
+
+        {/* Content */}
+        <ScrollArea className="flex-1 min-h-0">
+          <div ref={scrollRef} className="p-6 space-y-3">
+            {/* Entries */}
+            {state.entries.map((entry, idx) => (
+              <RoundtableCard key={entry.agentId} entry={entry} index={idx} />
+            ))}
+
+            {/* Manager Summary */}
+            {state.phase === "done" && (
+              <div className="mt-4 rounded-xl border border-amber-500/30 bg-amber-950/10 p-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <span className="text-lg">📋</span>
+                  <span className="text-sm font-semibold text-amber-300">Manager Zusammenfassung</span>
+                  <span className="text-[10px] text-zinc-600 ml-1">— Manager fasst alle Inputs zusammen</span>
+                </div>
+                {!managerSummary && !summaryLoading && (
+                  <Button
+                    onClick={generateSummary}
+                    size="sm"
+                    className="bg-amber-700/60 hover:bg-amber-600 text-amber-100 h-8 text-xs"
+                  >
+                    Zusammenfassung generieren
+                  </Button>
+                )}
+                {summaryLoading && (
+                  <div className="flex items-center gap-2 text-xs text-amber-400">
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    Manager analysiert alle Antworten...
+                  </div>
+                )}
+                {managerSummary && (
+                  <p className="text-sm text-zinc-300 leading-relaxed whitespace-pre-wrap">{managerSummary}</p>
+                )}
+              </div>
+            )}
+          </div>
+        </ScrollArea>
+
+        {/* Footer */}
+        <div className="px-6 py-3 border-t border-zinc-800/60 flex items-center justify-between shrink-0">
+          <div className="text-xs text-zinc-500">
+            {state.phase === "running" && (
+              <span className="flex items-center gap-1.5">
+                <span className="inline-block h-2 w-2 rounded-full bg-indigo-400 animate-pulse" />
+                Läuft... · Schließen ist sicher, Fortschritt wird gespeichert
+              </span>
+            )}
+            {state.phase === "done" && (
+              <span className="text-emerald-500/70">✓ Gespeichert · Beim nächsten Öffnen wieder abrufbar</span>
+            )}
+          </div>
+          <div className="flex gap-2">
+            {state.phase === "running" && (
+              <Button
+                onClick={() => { abortRef.current = true; setState((p) => p ? { ...p, phase: "done" } : p); onAgentActive(null); }}
+                variant="ghost" size="sm" className="h-7 text-xs text-red-400 hover:text-red-300"
+              >
+                Abbrechen
+              </Button>
+            )}
+            {state.phase === "done" &&
+              state.entries.some((e) => e.status === "error" || e.status === "pending") && (
+                <Button onClick={resumeRoundtable} variant="ghost" size="sm"
+                  className="h-7 text-xs text-indigo-400 hover:text-indigo-300 gap-1">
+                  <RotateCcw className="h-3 w-3" /> Fehlgeschlagene wiederholen
+                </Button>
+              )}
+            <Button onClick={onClose} variant="ghost" size="sm" className="h-7 text-xs text-zinc-400">
+              Schließen
+            </Button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ─── Single Entry Card ─── */
+function RoundtableCard({ entry, index }: { entry: RoundtableEntry; index: number }) {
+  return (
+    <div
+      className={cn(
+        "flex gap-3 rounded-xl border p-4 transition-all duration-500",
+        entry.status === "loading"
+          ? "border-indigo-500/60 bg-indigo-950/20"
+          : entry.status === "done"
+          ? "border-zinc-700/40 bg-zinc-900/30"
+          : entry.status === "error"
+          ? "border-red-700/30 bg-red-950/10"
+          : "border-zinc-800/30 bg-zinc-950/30 opacity-40"
+      )}
+    >
+      {/* Avatar */}
+      <div className="shrink-0 flex flex-col items-center gap-1">
+        <div className={cn(
+          "h-9 w-9 rounded-xl flex items-center justify-center text-lg border",
+          entry.status === "loading" ? "border-indigo-500/60 bg-indigo-950/40" :
+          entry.status === "done" ? "border-zinc-700/60 bg-zinc-800/60" :
+          entry.status === "error" ? "border-red-700/40 bg-red-950/30" :
+          "border-zinc-800/40 bg-zinc-900/40"
+        )}>
+          {entry.emoji}
+        </div>
+        <span className="text-[9px] text-zinc-600 font-mono">#{index + 1}</span>
+      </div>
+
+      {/* Content */}
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2 mb-1.5">
+          <span className="text-sm font-semibold text-zinc-200">{entry.name}</span>
+          <span className="text-xs text-zinc-500">{entry.role}</span>
+          <div className="ml-auto">
+            {entry.status === "loading" && (
+              <Loader2 className="h-3.5 w-3.5 animate-spin text-indigo-400" />
+            )}
+            {entry.status === "done" && (
+              <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />
+            )}
+            {entry.status === "error" && (
+              <AlertCircle className="h-3.5 w-3.5 text-red-400" />
+            )}
+          </div>
+        </div>
+
+        {entry.status === "pending" && (
+          <p className="text-xs text-zinc-600 italic">Wartet...</p>
+        )}
+        {entry.status === "loading" && (
+          <div className="flex gap-1 mt-1">
+            <span className="h-2 w-2 rounded-full bg-indigo-400 animate-bounce [animation-delay:0ms]" />
+            <span className="h-2 w-2 rounded-full bg-indigo-400 animate-bounce [animation-delay:120ms]" />
+            <span className="h-2 w-2 rounded-full bg-indigo-400 animate-bounce [animation-delay:240ms]" />
+          </div>
+        )}
+        {(entry.status === "done" || entry.status === "error") && entry.content && (
+          <p className={cn(
+            "text-sm leading-relaxed",
+            entry.status === "error" ? "text-red-400" : "text-zinc-300"
+          )}>
+            {entry.content}
+          </p>
         )}
       </div>
     </div>
