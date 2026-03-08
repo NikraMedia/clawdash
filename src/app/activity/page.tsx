@@ -103,7 +103,7 @@ function ActivityPageContent() {
 
 export default function ActivityPage() {
   return (
-    <div className="flex-1 overflow-auto p-6">
+    <div className="flex-1 overflow-auto p-4 sm:p-6">
       <div className="mx-auto flex w-full max-w-7xl flex-col gap-6">
         <div>
           <h1 className="text-lg font-semibold text-zinc-50">Activity Stream</h1>

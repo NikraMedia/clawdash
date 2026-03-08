@@ -68,7 +68,7 @@ export default function CostsPage() {
           Lade Daten...
         </div>
       ) : (
-        <div className="flex-1 overflow-auto p-6 space-y-6">
+        <div className="flex-1 overflow-auto p-4 sm:p-6 space-y-6">
           {/* Summary cards */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             <Card icon={Zap} label="Total Tokens" value={fmtTokens((data?.totalInput ?? 0) + (data?.totalOutput ?? 0))} color="text-amber-400" />

@@ -491,7 +491,7 @@ function SkillsPanel({ agent, onToast }: { agent: AgentData; onToast: (msg: stri
       {/* Marketplace Modal */}
       {showMarketplace && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={() => setShowMarketplace(false)}>
-          <div className="bg-zinc-900 border border-zinc-700 rounded-2xl w-[500px] max-h-[70vh] flex flex-col shadow-2xl" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-zinc-900 border border-zinc-700 rounded-2xl w-[calc(100%-2rem)] max-w-[500px] max-h-[70vh] flex flex-col shadow-2xl" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between px-5 py-4 border-b border-zinc-800/60">
               <h2 className="text-base font-semibold text-zinc-100">Marketplace — ClawHub</h2>
               <button onClick={() => setShowMarketplace(false)} className="text-zinc-500 hover:text-zinc-300"><X className="h-5 w-5" /></button>
@@ -892,9 +892,11 @@ export default function AgentsPage() {
         />
       )}
 
-      {/* Hierarchy */}
-      <div className={cn("flex flex-col overflow-hidden transition-all duration-300", selectedAgent ? "w-3/5" : "w-full")}>
-        <div className="flex items-center justify-between border-b border-zinc-800/60 px-6 py-4 shrink-0">
+      {/* Hierarchy - hidden on mobile when agent selected */}
+      <div className={cn("flex flex-col overflow-hidden transition-all duration-300",
+        selectedAgent ? "hidden md:flex md:w-3/5" : "w-full"
+      )}>
+        <div className="flex items-center justify-between border-b border-zinc-800/60 px-4 sm:px-6 py-4 shrink-0">
           <div>
             <h1 className="text-lg font-semibold text-zinc-100">Agents</h1>
             <p className="text-[11px] text-zinc-500 mt-0.5">{agents.length} agents · Org Chart · Click to chat</p>
@@ -935,7 +937,7 @@ export default function AgentsPage() {
 
       {/* Right Panel */}
       {selectedAgent && (
-        <div className="w-2/5 min-w-0 flex flex-col border-l border-zinc-800/80 bg-zinc-950">
+        <div className="w-full md:w-2/5 min-w-0 flex flex-col border-l border-zinc-800/80 bg-zinc-950">
           {/* Tab bar */}
           <div className="flex items-center border-b border-zinc-800/60 shrink-0">
             <button onClick={() => setSelectedAgent(null)} className="p-3 text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/50 transition-colors">

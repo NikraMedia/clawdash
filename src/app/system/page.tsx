@@ -133,7 +133,7 @@ export default function SystemPage() {
   );
 
   return (
-    <div className="flex-1 overflow-auto p-6">
+    <div className="flex-1 overflow-auto p-4 sm:p-6">
       <div className="mx-auto flex w-full max-w-7xl flex-col gap-6">
         <div className="animate-in fade-in slide-in-from-bottom-4 duration-700 fill-mode-both">
           <h1 className="text-lg font-semibold text-zinc-50">System</h1>
@@ -223,7 +223,7 @@ export default function SystemPage() {
 
         <div className="animate-in fade-in slide-in-from-bottom-4 duration-700 delay-150 fill-mode-both">
           <Tabs defaultValue="config">
-            <TabsList className="bg-zinc-900 border border-zinc-800 h-auto flex-wrap">
+            <TabsList className="bg-zinc-900 border border-zinc-800 h-auto overflow-x-auto whitespace-nowrap flex-nowrap w-full justify-start">
               {tabs.map((tab) => (
                 <TabsTrigger
                   key={tab.value}

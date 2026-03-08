@@ -125,10 +125,24 @@
 
   * {
     @apply border-border outline-ring/50;
+    min-width: 0;
   }
 
   body {
     @apply bg-background text-foreground;
+  }
+
+  /* Mobile: prevent horizontal overflow */
+  pre, code {
+    overflow-x: auto;
+    word-break: break-all;
+    max-width: 100%;
+  }
+
+  table {
+    display: block;
+    overflow-x: auto;
+    max-width: 100%;
   }
 }
 
