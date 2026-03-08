@@ -26,7 +26,7 @@ import {
   RefreshCw,
   CheckCircle2,
 } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn, generateId } from "@/lib/utils";
 import { HierarchyView } from "@/components/agents/hierarchy-view";
 import { RoundtableModal } from "@/components/agents/roundtable";
 import { Users } from "lucide-react";
@@ -188,7 +188,7 @@ function ChatPanel({ agent, onClose }: { agent: AgentData; onClose: () => void }
     const sessionKey = activeSessionKey ?? `agent:${realId}:${Date.now()}`;
     if (!activeSessionKey) setActiveSessionKey(sessionKey);
     try {
-      sendMutation.mutate({ sessionKey, message: message.trim(), idempotencyKey: crypto.randomUUID() });
+      sendMutation.mutate({ sessionKey, message: message.trim(), idempotencyKey: generateId() });
     } finally {
       isSendingRef.current = false;
     }

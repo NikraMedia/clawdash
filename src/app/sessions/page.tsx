@@ -11,6 +11,7 @@ import { validateAndAddFiles } from "@/lib/file-validation";
 import { Textarea } from "@/components/ui/textarea";
 import { parseModelsResponse } from "@/lib/model-options";
 import { stripMarkdown, stripRoutingTags } from "@/lib/session-utils";
+import { generateId } from "@/lib/utils";
 
 export default function NewSessionPage() {
   const [agentId, setAgentId] = useState("");
@@ -97,7 +98,7 @@ export default function NewSessionPage() {
 
     const trimmedMsg = message.trim();
     const sessionKey = `agent:${agentId}:${Date.now()}`;
-    const idempotencyKey = crypto.randomUUID();
+    const idempotencyKey = generateId();
 
     const filePayloads = await Promise.all(
       attachments.map(async (f) => {

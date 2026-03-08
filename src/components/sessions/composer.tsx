@@ -3,6 +3,7 @@
 import { useState, useRef, useContext, useCallback, useEffect } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTRPC } from "@/lib/trpc/react";
+import { generateId } from "@/lib/utils";
 import { useGatewayHealth } from "@/hooks/use-gateway-health";
 import { SessionStreamContext } from "@/hooks/use-session-stream";
 import { Button } from "@/components/ui/button";
@@ -107,7 +108,7 @@ export function Composer({ sessionKey }: { sessionKey: string }) {
     const handleSend = async () => {
         if (isSendingRef.current || !message.trim() || !canSend || sendMutation.isPending) return;
         isSendingRef.current = true;
-        const idempotencyKey = crypto.randomUUID();
+        const idempotencyKey = generateId();
 
         const filePayloads = await Promise.all(
             attachments.map(async (f) => {
