@@ -17,6 +17,7 @@
     "probe": "tsx scripts/gateway-probe.ts"
   },
   "dependencies": {
+    "@mendable/firecrawl-js": "^4.15.4",
     "@tanstack/react-query": "^5.90.21",
     "@trpc/client": "^11.10.0",
     "@trpc/server": "^11.10.0",
