@@ -20,6 +20,7 @@ import {
   Brain,
   Shield,
   DollarSign,
+  Sun,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -40,6 +41,7 @@ const navItems = [
   { href: "/cron", label: "Cron", icon: Clock },
   { href: "/activity", label: "Activity", icon: Activity },
   { href: "/system", label: "System", icon: Settings },
+  { href: "/ibiza", label: "🌴 Ibiza Trip", icon: Sun },
 ] as const;
 
 function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
